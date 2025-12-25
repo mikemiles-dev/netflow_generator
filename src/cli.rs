@@ -17,14 +17,18 @@ pub struct Cli {
     /// Destination IP:PORT (overrides config file destination)
     ///
     /// Format: IP:PORT (e.g., "192.168.1.100:2055")
-    /// Defaults to 127.0.0.1:2055 if not specified
+    /// Defaults to 127.0.0.1:2055 if not specified.
+    /// This is used for UDP transmission destination, or as the
+    /// destination IP/port in the pcap file headers when using --output.
     #[arg(short, long, value_name = "IP:PORT")]
     pub dest: Option<String>,
 
-    /// Output to file instead of sending via UDP
+    /// Output to pcap file instead of sending via UDP
     ///
-    /// When specified, packets are written to a binary file
-    /// instead of being transmitted over the network.
+    /// When specified, packets are written to a pcap file
+    /// with proper Ethernet/IP/UDP headers instead of being
+    /// transmitted over the network. The pcap file can be
+    /// analyzed with tools like Wireshark or tcpdump.
     #[arg(short, long, value_name = "FILE")]
     pub output: Option<PathBuf>,
 

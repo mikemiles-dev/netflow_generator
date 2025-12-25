@@ -28,6 +28,10 @@ pub enum NetflowError {
     #[error("Invalid destination address: {0}")]
     InvalidDestination(String),
 
+    /// Invalid packet data
+    #[error("Invalid packet: {0}")]
+    InvalidPacket(String),
+
     /// NetFlow parser errors
     #[error("NetFlow parser error: {0}")]
     ParserError(#[from] Box<dyn StdError>),

@@ -3,6 +3,9 @@ use std::net::Ipv4Addr;
 
 /// Serialize a field value based on its length
 pub fn serialize_field_value(value: &serde_yaml::Value, field_length: u16) -> Vec<u8> {
+    // Convert field_length to usize safely
+    let len = usize::from(field_length);
+
     match value {
         // String values might be IP addresses
         serde_yaml::Value::String(s) => {
@@ -11,24 +14,33 @@ pub fn serialize_field_value(value: &serde_yaml::Value, field_length: u16) -> Ve
                 ip.octets().to_vec()
             } else {
                 // Otherwise treat as hex string or raw bytes
-                vec![0; field_length as usize]
+                vec![0; len]
             }
         }
         // Number values
         serde_yaml::Value::Number(n) => {
             if let Some(val) = n.as_u64() {
                 match field_length {
-                    1 => vec![val as u8],
-                    2 => (val as u16).to_be_bytes().to_vec(),
-                    4 => (val as u32).to_be_bytes().to_vec(),
+                    1 => {
+                        // Try to convert u64 to u8, or use 0 if overflow
+                        vec![u8::try_from(val).unwrap_or(0)]
+                    }
+                    2 => {
+                        // Try to convert u64 to u16, or use 0 if overflow
+                        u16::try_from(val).unwrap_or(0).to_be_bytes().to_vec()
+                    }
+                    4 => {
+                        // Try to convert u64 to u32, or use 0 if overflow
+                        u32::try_from(val).unwrap_or(0).to_be_bytes().to_vec()
+                    }
                     8 => val.to_be_bytes().to_vec(),
-                    _ => vec![0; field_length as usize],
+                    _ => vec![0; len],
                 }
             } else {
-                vec![0; field_length as usize]
+                vec![0; len]
             }
         }
-        _ => vec![0; field_length as usize],
+        _ => vec![0; len],
     }
 }
 

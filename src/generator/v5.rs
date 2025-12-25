@@ -51,7 +51,9 @@ pub fn build_v5_packet(config: V5Config) -> Result<Vec<u8>> {
 }
 
 fn build_header(config: &V5Config) -> Result<Header> {
-    let count = config.flowsets.len() as u16;
+    let count = u16::try_from(config.flowsets.len()).map_err(|_| {
+        NetflowError::Generation("Too many flowsets (max 65535)".to_string())
+    })?;
 
     // Get current Unix timestamp for defaults
     let now = SystemTime::now()
@@ -59,9 +61,11 @@ fn build_header(config: &V5Config) -> Result<Header> {
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
 
     let unix_secs = if let Some(ref h) = config.header {
-        h.unix_secs.unwrap_or(now.as_secs() as u32)
+        h.unix_secs.unwrap_or_else(|| {
+            u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
+        })
     } else {
-        now.as_secs() as u32
+        u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
     };
 
     let unix_nsecs = if let Some(ref h) = config.header {
