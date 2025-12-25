@@ -118,7 +118,7 @@ fn build_udp_packet(
         SocketAddr::V6(_) => {
             return Err(NetflowError::InvalidDestination(
                 "IPv6 not supported for pcap export".to_string(),
-            ))
+            ));
         }
     };
 
@@ -195,15 +195,14 @@ fn calculate_checksum(data: &[u8]) -> Result<u16> {
     while sum >> 16 != 0 {
         let low = sum & 0xFFFF;
         let high = sum >> 16;
-        sum = low.checked_add(high).ok_or_else(|| {
-            NetflowError::InvalidPacket("Checksum fold overflow".to_string())
-        })?;
+        sum = low
+            .checked_add(high)
+            .ok_or_else(|| NetflowError::InvalidPacket("Checksum fold overflow".to_string()))?;
     }
 
     // One's complement - safe because sum is guaranteed to fit in u16 after folding
-    let sum_u16 = u16::try_from(sum).map_err(|_| {
-        NetflowError::InvalidPacket("Checksum exceeds u16::MAX".to_string())
-    })?;
+    let sum_u16 = u16::try_from(sum)
+        .map_err(|_| NetflowError::InvalidPacket("Checksum exceeds u16::MAX".to_string()))?;
 
     Ok(!sum_u16)
 }

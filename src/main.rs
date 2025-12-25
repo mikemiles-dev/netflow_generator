@@ -88,7 +88,12 @@ fn main() -> Result<()> {
                 } else {
                     output_path.clone()
                 };
-                transmitter::write_to_file(&packets, &output_with_iteration, destination, args.verbose)?;
+                transmitter::write_to_file(
+                    &packets,
+                    &output_with_iteration,
+                    destination,
+                    args.verbose,
+                )?;
             } else {
                 if args.verbose {
                     println!("Transmitting packets to {}", destination);

@@ -87,9 +87,8 @@ fn get_header_values(config: &IPFixConfig) -> Result<(u32, u32, u32)> {
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
 
     let export_time = if let Some(ref h) = config.header {
-        h.export_time.unwrap_or_else(|| {
-            u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
-        })
+        h.export_time
+            .unwrap_or_else(|| u32::try_from(now.as_secs()).unwrap_or(u32::MAX))
     } else {
         u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
     };

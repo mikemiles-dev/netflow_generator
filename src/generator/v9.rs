@@ -89,9 +89,8 @@ fn get_header_values(config: &V9Config) -> Result<(u32, u32, u32, u32)> {
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
 
     let unix_secs = if let Some(ref h) = config.header {
-        h.unix_secs.unwrap_or_else(|| {
-            u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
-        })
+        h.unix_secs
+            .unwrap_or_else(|| u32::try_from(now.as_secs()).unwrap_or(u32::MAX))
     } else {
         u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
     };
@@ -128,9 +127,8 @@ fn build_template_packet(
 
     // V9 Header (20 bytes)
     packet.extend_from_slice(&9u16.to_be_bytes()); // Version
-    let count = u16::try_from(templates.len()).map_err(|_| {
-        NetflowError::Generation("Too many templates (max 65535)".to_string())
-    })?;
+    let count = u16::try_from(templates.len())
+        .map_err(|_| NetflowError::Generation("Too many templates (max 65535)".to_string()))?;
     packet.extend_from_slice(&count.to_be_bytes()); // Count (number of flowsets)
     packet.extend_from_slice(&sys_up_time.to_be_bytes());
     packet.extend_from_slice(&unix_secs.to_be_bytes());
