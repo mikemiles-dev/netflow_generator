@@ -34,4 +34,12 @@ pub struct Cli {
     /// and transmission.
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Continuously generate and send flows every N seconds
+    ///
+    /// If specified, the generator will loop indefinitely, sending
+    /// flows at the specified interval. Default is 2 seconds.
+    /// Press Ctrl+C to stop.
+    #[arg(short, long, value_name = "SECONDS", default_missing_value = "2", num_args = 0..=1)]
+    pub interval: Option<u64>,
 }

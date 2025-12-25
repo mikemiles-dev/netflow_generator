@@ -9,6 +9,8 @@ use cli::Cli;
 use config::{parse_yaml_file, validate_config, FlowConfig};
 use error::Result;
 use std::net::SocketAddr;
+use std::time::Duration;
+use std::thread;
 
 fn main() -> Result<()> {
     // Parse CLI arguments
@@ -18,55 +20,135 @@ fn main() -> Result<()> {
         println!("NetFlow Generator starting...");
     }
 
-    // Generate or load packets
-    let packets = if let Some(ref config_path) = args.config {
-        // Load and parse YAML configuration
+    // Check if we're in continuous mode
+    if let Some(interval_secs) = args.interval {
         if args.verbose {
-            println!("Loading configuration from {:?}", config_path);
+            println!("Continuous mode: sending flows every {} seconds (Ctrl+C to stop)", interval_secs);
         }
 
-        let config = parse_yaml_file(&config_path)?;
-        validate_config(&config)?;
+        // Load config once if provided
+        let config = if let Some(ref config_path) = args.config {
+            if args.verbose {
+                println!("Loading configuration from {:?}", config_path);
+            }
+            let cfg = parse_yaml_file(&config_path)?;
+            validate_config(&cfg)?;
+            if args.verbose {
+                println!("Configuration loaded: {} flow(s)", cfg.flows.len());
+            }
+            Some(cfg)
+        } else {
+            if args.verbose {
+                println!("No configuration provided, using default samples");
+            }
+            None
+        };
 
-        if args.verbose {
-            println!("Configuration loaded: {} flow(s)", config.flows.len());
+        // Get destination once
+        let destination = if args.output.is_none() {
+            Some(parse_destination(&args)?)
+        } else {
+            None
+        };
+
+        // Loop indefinitely
+        let mut iteration = 1;
+        loop {
+            if args.verbose {
+                println!("\n--- Iteration {} ---", iteration);
+            }
+
+            // Generate packets
+            let packets = if let Some(ref cfg) = config {
+                generate_packets_from_config(cfg, args.verbose)?
+            } else {
+                generator::generate_all_samples()?
+            };
+
+            if args.verbose {
+                println!("Generated {} packet(s)", packets.len());
+            }
+
+            // Output packets
+            if let Some(ref output_path) = args.output {
+                // Append iteration number to filename for continuous file writes
+                let output_with_iteration = if iteration > 1 {
+                    let mut path = output_path.clone();
+                    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+                    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+                    path.set_file_name(format!("{}_{}{}", stem, iteration, ext));
+                    path
+                } else {
+                    output_path.clone()
+                };
+                transmitter::write_to_file(&packets, &output_with_iteration, args.verbose)?;
+            } else if let Some(dest) = destination {
+                if args.verbose {
+                    println!("Transmitting packets to {}", dest);
+                }
+                transmitter::send_udp(&packets, dest, args.verbose)?;
+            }
+
+            iteration += 1;
+
+            // Sleep for the specified interval
+            if args.verbose {
+                println!("Sleeping for {} seconds...", interval_secs);
+            }
+            thread::sleep(Duration::from_secs(interval_secs));
         }
-
-        // Generate packets from config
-        generate_packets_from_config(&config, args.verbose)?
     } else {
-        // Use default samples
+        // Single-shot mode (original behavior)
+        // Generate or load packets
+        let packets = if let Some(ref config_path) = args.config {
+            // Load and parse YAML configuration
+            if args.verbose {
+                println!("Loading configuration from {:?}", config_path);
+            }
+
+            let config = parse_yaml_file(&config_path)?;
+            validate_config(&config)?;
+
+            if args.verbose {
+                println!("Configuration loaded: {} flow(s)", config.flows.len());
+            }
+
+            // Generate packets from config
+            generate_packets_from_config(&config, args.verbose)?
+        } else {
+            // Use default samples
+            if args.verbose {
+                println!("No configuration provided, using default samples");
+            }
+
+            generator::generate_all_samples()?
+        };
+
         if args.verbose {
-            println!("No configuration provided, using default samples");
+            println!("Generated {} packet(s)", packets.len());
         }
 
-        generator::generate_all_samples()?
-    };
+        // Output packets
+        if let Some(output_path) = args.output {
+            // Write to file
+            transmitter::write_to_file(&packets, &output_path, args.verbose)?;
+        } else {
+            // Send via UDP
+            let destination = parse_destination(&args)?;
 
-    if args.verbose {
-        println!("Generated {} packet(s)", packets.len());
-    }
+            if args.verbose {
+                println!("Transmitting packets to {}", destination);
+            }
 
-    // Output packets
-    if let Some(output_path) = args.output {
-        // Write to file
-        transmitter::write_to_file(&packets, &output_path, args.verbose)?;
-    } else {
-        // Send via UDP
-        let destination = parse_destination(&args)?;
-
-        if args.verbose {
-            println!("Transmitting packets to {}", destination);
+            transmitter::send_udp(&packets, destination, args.verbose)?;
         }
 
-        transmitter::send_udp(&packets, destination, args.verbose)?;
-    }
+        if args.verbose {
+            println!("Done!");
+        }
 
-    if args.verbose {
-        println!("Done!");
+        Ok(())
     }
-
-    Ok(())
 }
 
 fn generate_packets_from_config(config: &config::Config, verbose: bool) -> Result<Vec<Vec<u8>>> {

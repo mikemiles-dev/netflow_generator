@@ -7,6 +7,7 @@ A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7
 - **Multiple NetFlow Versions**: Support for NetFlow v5, v7, v9, and IPFIX
 - **YAML Configuration**: Define custom flow records with full field-level control
 - **Default Sample Mode**: Built-in sample packets for quick testing
+- **Continuous Generation**: Send flows at configurable intervals for ongoing traffic simulation
 - **Flexible Output**: Send packets via UDP or save to file
 - **Template Support**: Full support for NetFlow v9 and IPFIX template and data records
 - **Configurable Destination**: Override destination IP and port via CLI
@@ -36,7 +37,11 @@ The compiled binary will be available at `target/release/netflow_generator`.
 Generate and send one sample packet of each NetFlow version (v5, v7, v9, IPFIX) to localhost:2055:
 
 ```bash
+# Using compiled binary
 netflow_generator
+
+# Using cargo run
+cargo run
 ```
 
 This will send 6 packets total:
@@ -50,7 +55,11 @@ This will send 6 packets total:
 Generate packets from a YAML configuration file:
 
 ```bash
+# Using compiled binary
 netflow_generator --config flows.yaml
+
+# Using cargo run
+cargo run -- --config flows.yaml
 ```
 
 ### Override Destination
@@ -58,7 +67,11 @@ netflow_generator --config flows.yaml
 Send packets to a different destination:
 
 ```bash
+# Using compiled binary
 netflow_generator --config flows.yaml --dest 192.168.1.100:2055
+
+# Using cargo run
+cargo run -- --config flows.yaml --dest 192.168.1.100:2055
 ```
 
 ### Save to File
@@ -66,7 +79,11 @@ netflow_generator --config flows.yaml --dest 192.168.1.100:2055
 Save generated packets to a binary file instead of sending:
 
 ```bash
+# Using compiled binary
 netflow_generator --config flows.yaml --output packets.bin
+
+# Using cargo run
+cargo run -- --config flows.yaml --output packets.bin
 ```
 
 ### Verbose Output
@@ -74,19 +91,53 @@ netflow_generator --config flows.yaml --output packets.bin
 Enable detailed logging:
 
 ```bash
+# Using compiled binary
 netflow_generator --config flows.yaml --verbose
+
+# Using cargo run
+cargo run -- --config flows.yaml --verbose
 ```
+
+### Continuous Mode
+
+Generate and send flows continuously at regular intervals:
+
+```bash
+# Send flows every 2 seconds (default interval)
+netflow_generator --interval
+
+# Or using cargo run
+cargo run -- --interval
+
+# Send flows every 5 seconds
+netflow_generator --interval 5
+
+# Or using cargo run
+cargo run -- --interval 5
+
+# Continuous mode with custom config every 10 seconds
+netflow_generator --config flows.yaml --interval 10 --verbose
+
+# Or using cargo run
+cargo run -- --config flows.yaml --interval 10 --verbose
+```
+
+In continuous mode, the generator will loop indefinitely, sending packets at the specified interval. Press Ctrl+C to stop.
+
+Note: When using `--output` with `--interval`, each iteration will create a separate file with an iteration number appended (e.g., `packets.bin`, `packets_2.bin`, `packets_3.bin`).
 
 ## CLI Options
 
 ```
 Options:
-  -c, --config <FILE>     Path to YAML configuration file
-  -d, --dest <IP:PORT>    Destination address (overrides config)
-  -o, --output <FILE>     Save packets to file instead of sending
-  -v, --verbose           Enable verbose output
-  -h, --help              Print help information
-  -V, --version           Print version information
+  -c, --config <FILE>        Path to YAML configuration file
+  -d, --dest <IP:PORT>       Destination address (overrides config)
+  -o, --output <FILE>        Save packets to file instead of sending
+  -v, --verbose              Enable verbose output
+  -i, --interval [SECONDS]   Continuously send flows every N seconds (default: 2)
+                             Press Ctrl+C to stop
+  -h, --help                 Print help information
+  -V, --version              Print version information
 ```
 
 ## YAML Configuration Format
@@ -418,7 +469,11 @@ All example YAML files are available in the `examples/` directory:
 Run an example:
 
 ```bash
+# Using compiled binary
 netflow_generator --config examples/v9_sample.yaml --verbose
+
+# Using cargo run
+cargo run -- --config examples/v9_sample.yaml --verbose
 ```
 
 ## Testing with NetFlow Collectors
@@ -429,8 +484,11 @@ netflow_generator --config examples/v9_sample.yaml --verbose
 # Start nfcapd collector
 nfcapd -l /tmp/nfcapd -p 2055
 
-# In another terminal, send flows
+# In another terminal, send flows (using compiled binary)
 netflow_generator --config examples/v9_sample.yaml
+
+# Or using cargo run
+cargo run -- --config examples/v9_sample.yaml
 
 # Read captured flows
 nfdump -r /tmp/nfcapd/nfcapd.current
@@ -440,7 +498,14 @@ nfdump -r /tmp/nfcapd/nfcapd.current
 
 1. Start Wireshark capture on loopback interface
 2. Apply filter: `udp.port == 2055`
-3. Run the generator: `netflow_generator --verbose`
+3. Run the generator:
+   ```bash
+   # Using compiled binary
+   netflow_generator --verbose
+
+   # Using cargo run
+   cargo run -- --verbose
+   ```
 4. Analyze captured NetFlow packets in Wireshark
 
 ## Architecture
