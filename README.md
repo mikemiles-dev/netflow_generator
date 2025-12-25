@@ -1,2 +1,484 @@
-# netflow_generator
-Generates Netflows
+# NetFlow Generator
+
+A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7, v9, and IPFIX formats. Generate custom flow data from YAML configurations or use built-in sample packets for testing network monitoring systems.
+
+## Features
+
+- **Multiple NetFlow Versions**: Support for NetFlow v5, v7, v9, and IPFIX
+- **YAML Configuration**: Define custom flow records with full field-level control
+- **Default Sample Mode**: Built-in sample packets for quick testing
+- **Flexible Output**: Send packets via UDP or save to file
+- **Template Support**: Full support for NetFlow v9 and IPFIX template and data records
+- **Configurable Destination**: Override destination IP and port via CLI
+- **Validation**: Automatic validation of configuration files
+
+## Installation
+
+### Prerequisites
+
+- Rust 1.70 or later
+- Cargo (comes with Rust)
+
+### Building from Source
+
+```bash
+git clone https://github.com/yourusername/netflow_generator.git
+cd netflow_generator
+cargo build --release
+```
+
+The compiled binary will be available at `target/release/netflow_generator`.
+
+## Usage
+
+### Default Mode
+
+Generate and send one sample packet of each NetFlow version (v5, v7, v9, IPFIX) to localhost:2055:
+
+```bash
+netflow_generator
+```
+
+This will send 6 packets total:
+- 1 NetFlow v5 packet (HTTPS traffic)
+- 1 NetFlow v7 packet (DNS traffic)
+- 2 NetFlow v9 packets (template + data for HTTP traffic)
+- 2 IPFIX packets (template + data for SSH traffic)
+
+### Custom Configuration
+
+Generate packets from a YAML configuration file:
+
+```bash
+netflow_generator --config flows.yaml
+```
+
+### Override Destination
+
+Send packets to a different destination:
+
+```bash
+netflow_generator --config flows.yaml --dest 192.168.1.100:2055
+```
+
+### Save to File
+
+Save generated packets to a binary file instead of sending:
+
+```bash
+netflow_generator --config flows.yaml --output packets.bin
+```
+
+### Verbose Output
+
+Enable detailed logging:
+
+```bash
+netflow_generator --config flows.yaml --verbose
+```
+
+## CLI Options
+
+```
+Options:
+  -c, --config <FILE>     Path to YAML configuration file
+  -d, --dest <IP:PORT>    Destination address (overrides config)
+  -o, --output <FILE>     Save packets to file instead of sending
+  -v, --verbose           Enable verbose output
+  -h, --help              Print help information
+  -V, --version           Print version information
+```
+
+## YAML Configuration Format
+
+### Structure
+
+```yaml
+flows:
+  - version: v5|v7|v9|ipfix
+    header: # Optional, auto-generates if not specified
+      # Version-specific header fields
+    flowsets:
+      # Version-specific flowset records
+
+destination:
+  ip: "127.0.0.1"   # Optional, defaults to 127.0.0.1
+  port: 2055        # Optional, defaults to 2055
+```
+
+### NetFlow v5 Example
+
+```yaml
+flows:
+  - version: v5
+    header:
+      unix_secs: 1735141200
+      unix_nsecs: 0
+      sys_up_time: 360000
+      flow_sequence: 1
+    flowsets:
+      - src_addr: "192.168.1.100"
+        dst_addr: "172.217.14.206"
+        next_hop: "192.168.1.1"
+        input: 1
+        output: 2
+        d_pkts: 150
+        d_octets: 95000
+        first: 350000
+        last: 360000
+        src_port: 52341
+        dst_port: 443
+        tcp_flags: 24
+        protocol: 6
+        tos: 0
+        src_as: 65000
+        dst_as: 15169
+        src_mask: 24
+        dst_mask: 24
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
+```
+
+### NetFlow v7 Example
+
+```yaml
+flows:
+  - version: v7
+    header:
+      unix_secs: 1735141200
+      unix_nsecs: 0
+      sys_up_time: 360000
+      flow_sequence: 1
+    flowsets:
+      - src_addr: "10.0.0.50"
+        dst_addr: "8.8.8.8"
+        next_hop: "10.0.0.1"
+        input: 10
+        output: 20
+        d_pkts: 2
+        d_octets: 128
+        first: 355000
+        last: 355100
+        src_port: 54123
+        dst_port: 53
+        flags: 0
+        tcp_flags: 0
+        protocol: 17
+        tos: 0
+        src_as: 64512
+        dst_as: 15169
+        src_mask: 16
+        dst_mask: 8
+        flags2: 0
+        router_src: "10.0.0.1"
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
+```
+
+### NetFlow v9 Example
+
+NetFlow v9 requires template definitions followed by data records:
+
+```yaml
+flows:
+  - version: v9
+    header:
+      sys_up_time: 360000
+      unix_secs: 1735141200
+      sequence_number: 100
+      source_id: 1
+    flowsets:
+      # First, define the template
+      - type: template
+        template_id: 256
+        fields:
+          - field_type: "IPV4_SRC_ADDR"
+            field_length: 4
+          - field_type: "IPV4_DST_ADDR"
+            field_length: 4
+          - field_type: "IN_PKTS"
+            field_length: 4
+          - field_type: "IN_BYTES"
+            field_length: 4
+          - field_type: "L4_SRC_PORT"
+            field_length: 2
+          - field_type: "L4_DST_PORT"
+            field_length: 2
+          - field_type: "PROTOCOL"
+            field_length: 1
+
+      # Then, provide data using the template
+      - type: data
+        template_id: 256
+        records:
+          - src_addr: "192.168.10.5"
+            dst_addr: "93.184.216.34"
+            in_pkts: 50
+            in_bytes: 35000
+            src_port: 48921
+            dst_port: 80
+            protocol: 6
+          - src_addr: "10.0.1.100"
+            dst_addr: "8.8.8.8"
+            in_pkts: 2
+            in_bytes: 128
+            src_port: 54123
+            dst_port: 53
+            protocol: 17
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
+```
+
+#### Supported NetFlow v9 Field Types
+
+- IPV4_SRC_ADDR (8)
+- IPV4_DST_ADDR (12)
+- IN_BYTES (1)
+- IN_PKTS (2)
+- FLOWS (3)
+- PROTOCOL (4)
+- SRC_TOS (5)
+- TCP_FLAGS (6)
+- L4_SRC_PORT (7)
+- L4_DST_PORT (11)
+- SRC_MASK (9)
+- DST_MASK (13)
+- INPUT_SNMP (10)
+- OUTPUT_SNMP (14)
+- IPV4_NEXT_HOP (15)
+- SRC_AS (16)
+- DST_AS (17)
+- BGP_IPV4_NEXT_HOP (18)
+- LAST_SWITCHED (21)
+- FIRST_SWITCHED (22)
+- OUT_BYTES (23)
+- OUT_PKTS (24)
+
+### IPFIX Example
+
+IPFIX uses IANA Information Element names:
+
+```yaml
+flows:
+  - version: ipfix
+    header:
+      export_time: 1735141200
+      sequence_number: 500
+      observation_domain_id: 1
+    flowsets:
+      # Define template using IANA Information Element names
+      - type: template
+        template_id: 300
+        fields:
+          - field_type: "sourceIPv4Address"
+            field_length: 4
+          - field_type: "destinationIPv4Address"
+            field_length: 4
+          - field_type: "packetDeltaCount"
+            field_length: 8
+          - field_type: "octetDeltaCount"
+            field_length: 8
+          - field_type: "sourceTransportPort"
+            field_length: 2
+          - field_type: "destinationTransportPort"
+            field_length: 2
+          - field_type: "protocolIdentifier"
+            field_length: 1
+
+      # Data records using the template
+      - type: data
+        template_id: 300
+        records:
+          - source_ipv4_address: "172.20.0.100"
+            destination_ipv4_address: "198.51.100.10"
+            packet_delta_count: 500
+            octet_delta_count: 125000
+            source_transport_port: 50122
+            destination_transport_port: 22
+            protocol_identifier: 6
+          - source_ipv4_address: "192.168.1.50"
+            destination_ipv4_address: "1.1.1.1"
+            packet_delta_count: 10
+            octet_delta_count: 1200
+            source_transport_port: 52000
+            destination_transport_port: 443
+            protocol_identifier: 6
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
+```
+
+#### Supported IPFIX Information Elements
+
+- octetDeltaCount (1)
+- packetDeltaCount (2)
+- deltaFlowCount (3)
+- protocolIdentifier (4)
+- ipClassOfService (5)
+- tcpControlBits (6)
+- sourceTransportPort (7)
+- sourceIPv4Address (8)
+- sourceIPv4PrefixLength (9)
+- ingressInterface (10)
+- destinationTransportPort (11)
+- destinationIPv4Address (12)
+- destinationIPv4PrefixLength (13)
+- egressInterface (14)
+- ipNextHopIPv4Address (15)
+- bgpSourceAsNumber (16)
+- bgpDestinationAsNumber (17)
+- bgpNextHopIPv4Address (18)
+- flowEndSysUpTime (21)
+- flowStartSysUpTime (22)
+
+### Multi-Flow Configuration
+
+You can define multiple flows of different versions in a single configuration:
+
+```yaml
+flows:
+  - version: v5
+    flowsets:
+      - src_addr: "192.168.1.10"
+        dst_addr: "10.0.0.50"
+        # ... other v5 fields
+
+  - version: v9
+    flowsets:
+      - type: template
+        template_id: 256
+        fields:
+          # ... template fields
+      - type: data
+        template_id: 256
+        records:
+          # ... data records
+
+  - version: ipfix
+    flowsets:
+      - type: template
+        template_id: 300
+        fields:
+          # ... template fields
+      - type: data
+        template_id: 300
+        records:
+          # ... data records
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
+```
+
+## Default Sample Packets
+
+When no configuration is provided, the generator creates realistic sample traffic:
+
+### NetFlow v5
+- HTTPS flow: 192.168.1.100:52341 → 172.217.14.206:443
+- 150 packets, 95KB transferred
+- TCP with ACK+PSH flags
+- Google AS (15169)
+
+### NetFlow v7
+- DNS query: 10.0.0.50:54123 → 8.8.8.8:53
+- 2 packets, 128 bytes
+- UDP protocol
+- Google DNS server
+
+### NetFlow v9
+- HTTP flow: 192.168.10.5:48921 → 93.184.216.34:80
+- Template ID 256 with 7 fields
+- 50 packets, 35KB transferred
+- TCP protocol
+
+### IPFIX
+- SSH session: 172.20.0.100:50122 → 198.51.100.10:22
+- Template ID 300 with 7 fields
+- 500 packets, 125KB transferred
+- TCP protocol
+
+## Examples
+
+All example YAML files are available in the `examples/` directory:
+
+- `v5_sample.yaml` - NetFlow v5 configuration
+- `v7_sample.yaml` - NetFlow v7 configuration
+- `v9_sample.yaml` - NetFlow v9 with template and data
+- `ipfix_sample.yaml` - IPFIX with template and data
+- `multi_flow.yaml` - Multiple NetFlow versions in one config
+
+Run an example:
+
+```bash
+netflow_generator --config examples/v9_sample.yaml --verbose
+```
+
+## Testing with NetFlow Collectors
+
+### Using nfdump
+
+```bash
+# Start nfcapd collector
+nfcapd -l /tmp/nfcapd -p 2055
+
+# In another terminal, send flows
+netflow_generator --config examples/v9_sample.yaml
+
+# Read captured flows
+nfdump -r /tmp/nfcapd/nfcapd.current
+```
+
+### Using Wireshark
+
+1. Start Wireshark capture on loopback interface
+2. Apply filter: `udp.port == 2055`
+3. Run the generator: `netflow_generator --verbose`
+4. Analyze captured NetFlow packets in Wireshark
+
+## Architecture
+
+The project is organized into several modules:
+
+- **cli**: Command-line argument parsing using Clap
+- **config**: YAML schema definition, parsing, and validation
+- **generator**: Packet generation for each NetFlow version
+  - `v5.rs` - NetFlow v5 packet builder
+  - `v7.rs` - NetFlow v7 packet builder
+  - `v9.rs` - NetFlow v9 template and data packet builder
+  - `ipfix.rs` - IPFIX template and data packet builder
+  - `samples.rs` - Default sample packet definitions
+  - `field_serializer.rs` - Field value serialization helpers
+- **transmitter**: UDP transmission and file output
+- **error**: Custom error types using thiserror
+
+## Dependencies
+
+- `netflow_parser` (0.6) - NetFlow packet structures
+- `serde_yaml` (0.9) - YAML parsing
+- `serde` (1.0) - Serialization framework
+- `clap` (4.5) - CLI argument parsing
+- `tokio` (1.42) - Async runtime for networking
+- `anyhow` (1.0) - Error handling
+- `thiserror` (2.0) - Custom error types
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Uses the `netflow_parser` crate for NetFlow packet structures
+- NetFlow v5/v7/v9 specifications from Cisco
+- IPFIX specification from RFC 7011
