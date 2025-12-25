@@ -551,12 +551,11 @@ The project is organized into several modules:
 
 ## Dependencies
 
-- `netflow_parser` (0.6) - NetFlow packet structures
+- `netflow_parser` (0.7.0) - NetFlow packet structures
 - `serde_yaml` (0.9) - YAML parsing
 - `serde` (1.0) - Serialization framework
 - `clap` (4.5) - CLI argument parsing
 - `tokio` (1.42) - Async runtime for networking
-- `anyhow` (1.0) - Error handling
 - `thiserror` (2.0) - Custom error types
 
 ## Contributing
