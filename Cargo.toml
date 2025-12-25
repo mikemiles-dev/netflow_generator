@@ -1,6 +1,22 @@
 [package]
 name = "netflow_generator"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+# NetFlow packet structures and serialization
+netflow_parser = "0.6"
+
+# YAML parsing
+serde_yaml = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive", "cargo"] }
+
+# Networking
+tokio = { version = "1.42", features = ["net", "rt"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"

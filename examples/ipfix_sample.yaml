@@ -1,0 +1,51 @@
+# IPFIX Sample Configuration
+# Demonstrates IPFIX template and data records
+
+flows:
+  - version: ipfix
+    header:
+      export_time: 1735141200
+      sequence_number: 500
+      observation_domain_id: 1
+    flowsets:
+      # Define template using IANA Information Element names
+      - type: template
+        template_id: 300
+        fields:
+          - field_type: "sourceIPv4Address"
+            field_length: 4
+          - field_type: "destinationIPv4Address"
+            field_length: 4
+          - field_type: "packetDeltaCount"
+            field_length: 8
+          - field_type: "octetDeltaCount"
+            field_length: 8
+          - field_type: "sourceTransportPort"
+            field_length: 2
+          - field_type: "destinationTransportPort"
+            field_length: 2
+          - field_type: "protocolIdentifier"
+            field_length: 1
+
+      # Data records using the template
+      - type: data
+        template_id: 300
+        records:
+          - source_ipv4_address: "172.20.0.100"
+            destination_ipv4_address: "198.51.100.10"
+            packet_delta_count: 500
+            octet_delta_count: 125000
+            source_transport_port: 50122
+            destination_transport_port: 22
+            protocol_identifier: 6
+          - source_ipv4_address: "192.168.1.50"
+            destination_ipv4_address: "1.1.1.1"
+            packet_delta_count: 10
+            octet_delta_count: 1200
+            source_transport_port: 52000
+            destination_transport_port: 443
+            protocol_identifier: 6
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055

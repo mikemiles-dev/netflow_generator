@@ -1,0 +1,53 @@
+# NetFlow V9 Sample Configuration
+# Demonstrates template definition and data records
+
+flows:
+  - version: v9
+    header:
+      sys_up_time: 360000
+      unix_secs: 1735141200
+      sequence_number: 100
+      source_id: 1
+    flowsets:
+      # First, define the template
+      - type: template
+        template_id: 256
+        fields:
+          - field_type: "IPV4_SRC_ADDR"
+            field_length: 4
+          - field_type: "IPV4_DST_ADDR"
+            field_length: 4
+          - field_type: "IN_PKTS"
+            field_length: 4
+          - field_type: "IN_BYTES"
+            field_length: 4
+          - field_type: "L4_SRC_PORT"
+            field_length: 2
+          - field_type: "L4_DST_PORT"
+            field_length: 2
+          - field_type: "PROTOCOL"
+            field_length: 1
+
+      # Then, provide data using the template
+      # Field names correspond to the template fields
+      - type: data
+        template_id: 256
+        records:
+          - src_addr: "192.168.10.5"
+            dst_addr: "93.184.216.34"
+            in_pkts: 50
+            in_bytes: 35000
+            src_port: 48921
+            dst_port: 80
+            protocol: 6
+          - src_addr: "10.0.1.100"
+            dst_addr: "8.8.8.8"
+            in_pkts: 2
+            in_bytes: 128
+            src_port: 54123
+            dst_port: 53
+            protocol: 17
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055

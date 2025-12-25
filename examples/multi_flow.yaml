@@ -1,0 +1,54 @@
+# Multi-Flow Sample Configuration
+# Demonstrates multiple NetFlow versions in a single configuration
+
+flows:
+  # NetFlow V5 flow - HTTPS traffic
+  - version: v5
+    flowsets:
+      - src_addr: "192.168.1.10"
+        dst_addr: "172.217.14.206"
+        next_hop: "192.168.1.1"
+        input: 1
+        output: 2
+        d_pkts: 150
+        d_octets: 95000
+        first: 350000
+        last: 360000
+        src_port: 54321
+        dst_port: 443
+        tcp_flags: 0x18
+        protocol: 6
+        tos: 0
+        src_as: 65001
+        dst_as: 15169
+        src_mask: 24
+        dst_mask: 24
+
+  # NetFlow V7 flow - DNS query
+  - version: v7
+    flowsets:
+      - src_addr: "10.0.0.50"
+        dst_addr: "8.8.8.8"
+        next_hop: "10.0.0.1"
+        input: 10
+        output: 20
+        d_pkts: 2
+        d_octets: 128
+        first: 355000
+        last: 355100
+        src_port: 54123
+        dst_port: 53
+        flags: 0
+        tcp_flags: 0
+        protocol: 17
+        tos: 0
+        src_as: 64512
+        dst_as: 15169
+        src_mask: 16
+        dst_mask: 8
+        flags2: 0
+        router_src: "10.0.0.1"
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055

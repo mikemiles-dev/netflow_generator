@@ -1,0 +1,37 @@
+# NetFlow V7 Sample Configuration
+# Represents DNS query to Google DNS
+
+flows:
+  - version: v7
+    header:
+      unix_secs: 1735141200
+      unix_nsecs: 0
+      sys_up_time: 360000
+      flow_sequence: 1
+      reserved: 0
+    flowsets:
+      - src_addr: "10.0.0.50"
+        dst_addr: "8.8.8.8"  # Google DNS
+        next_hop: "10.0.0.1"
+        input: 10
+        output: 20
+        d_pkts: 2
+        d_octets: 128
+        first: 355000
+        last: 355100
+        src_port: 54123
+        dst_port: 53  # DNS
+        flags: 0
+        tcp_flags: 0
+        protocol: 17  # UDP
+        tos: 0
+        src_as: 64512
+        dst_as: 15169  # Google ASN
+        src_mask: 16
+        dst_mask: 8
+        flags2: 0
+        router_src: "10.0.0.1"
+
+destination:
+  ip: "127.0.0.1"
+  port: 2055
