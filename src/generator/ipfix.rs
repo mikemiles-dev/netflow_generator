@@ -1,6 +1,8 @@
 use crate::config::schema::{IPFixConfig, IPFixFlowSet as ConfigIPFixFlowSet};
 use crate::error::{NetflowError, Result};
-use crate::generator::field_serializer::{serialize_field_value, get_field_value, ipfix_field_id_to_name};
+use crate::generator::field_serializer::{
+    get_field_value, ipfix_field_id_to_name, serialize_field_value,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build IPFIX packets from configuration
@@ -17,10 +19,16 @@ pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
 
     for flowset in &config.flowsets {
         match flowset {
-            ConfigIPFixFlowSet::Template { template_id, fields } => {
+            ConfigIPFixFlowSet::Template {
+                template_id,
+                fields,
+            } => {
                 templates.push((*template_id, fields.clone()));
             }
-            ConfigIPFixFlowSet::Data { template_id, records } => {
+            ConfigIPFixFlowSet::Data {
+                template_id,
+                records,
+            } => {
                 data_flowsets.push((*template_id, records.clone()));
             }
         }
@@ -195,7 +203,8 @@ fn build_data_packet(
             let field_name = ipfix_field_id_to_name(field_type);
 
             // Get field value from record or use zero
-            let value = get_field_value(record, field_name).unwrap_or(serde_yaml::Value::Number(0.into()));
+            let value =
+                get_field_value(record, field_name).unwrap_or(serde_yaml::Value::Number(0.into()));
 
             // Serialize the field value
             let bytes = serialize_field_value(&value, field.field_length);

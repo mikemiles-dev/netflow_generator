@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::error::Error as StdError;
+use thiserror::Error;
 
 /// Custom error types for the NetFlow generator
 #[derive(Error, Debug)]

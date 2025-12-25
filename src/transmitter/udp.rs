@@ -74,7 +74,7 @@ mod tests {
 
         // Send a test packet
         let test_packet = vec![0x00, 0x05, 0x00, 0x01]; // Simple V5 header start
-        send_udp(&[test_packet.clone()], receiver_addr, false).unwrap();
+        send_udp(std::slice::from_ref(&test_packet), receiver_addr, false).unwrap();
 
         // Receive and verify
         let mut buf = [0u8; 1024];

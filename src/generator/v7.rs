@@ -1,6 +1,6 @@
 use crate::config::schema::V7Config;
 use crate::error::{NetflowError, Result};
-use netflow_parser::static_versions::v7::{V7, Header, FlowSet};
+use netflow_parser::static_versions::v7::{FlowSet, Header, V7};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build a NetFlow V7 packet from configuration
@@ -139,7 +139,7 @@ mod tests {
         let packet = build_v7_packet(config).unwrap();
 
         // Verify packet can be parsed back
-        let parser = NetflowParser::default();
+        let mut parser = NetflowParser::default();
         let parsed = parser.parse_bytes(&packet);
         assert_eq!(parsed.len(), 1);
     }

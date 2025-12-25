@@ -1,6 +1,6 @@
 use crate::config::schema::{
-    V5Config, V5FlowSet, V7Config, V7FlowSet, V9Config, V9FlowSet, V9TemplateField,
-    IPFixConfig, IPFixFlowSet, IPFixTemplateField,
+    IPFixConfig, IPFixFlowSet, IPFixTemplateField, V5Config, V5FlowSet, V7Config, V7FlowSet,
+    V9Config, V9FlowSet, V9TemplateField,
 };
 use crate::error::Result;
 use std::net::Ipv4Addr;
@@ -21,7 +21,7 @@ pub fn sample_v5_config() -> V5Config {
             first: 350000,
             last: 360000,
             src_port: 52341,
-            dst_port: 443, // HTTPS
+            dst_port: 443,   // HTTPS
             tcp_flags: 0x18, // ACK + PSH
             protocol: 6,     // TCP
             tos: 0,
@@ -111,13 +111,34 @@ pub fn sample_v9_config() -> V9Config {
                 template_id: 256,
                 records: vec![{
                     let mut map = serde_yaml::Mapping::new();
-                    map.insert(Value::String("src_addr".to_string()), Value::String("192.168.10.5".to_string()));
-                    map.insert(Value::String("dst_addr".to_string()), Value::String("93.184.216.34".to_string()));
-                    map.insert(Value::String("in_pkts".to_string()), Value::Number(50.into()));
-                    map.insert(Value::String("in_bytes".to_string()), Value::Number(35000.into()));
-                    map.insert(Value::String("src_port".to_string()), Value::Number(48921.into()));
-                    map.insert(Value::String("dst_port".to_string()), Value::Number(80.into()));
-                    map.insert(Value::String("protocol".to_string()), Value::Number(6.into()));
+                    map.insert(
+                        Value::String("src_addr".to_string()),
+                        Value::String("192.168.10.5".to_string()),
+                    );
+                    map.insert(
+                        Value::String("dst_addr".to_string()),
+                        Value::String("93.184.216.34".to_string()),
+                    );
+                    map.insert(
+                        Value::String("in_pkts".to_string()),
+                        Value::Number(50.into()),
+                    );
+                    map.insert(
+                        Value::String("in_bytes".to_string()),
+                        Value::Number(35000.into()),
+                    );
+                    map.insert(
+                        Value::String("src_port".to_string()),
+                        Value::Number(48921.into()),
+                    );
+                    map.insert(
+                        Value::String("dst_port".to_string()),
+                        Value::Number(80.into()),
+                    );
+                    map.insert(
+                        Value::String("protocol".to_string()),
+                        Value::Number(6.into()),
+                    );
                     Value::Mapping(map)
                 }],
             },
@@ -172,13 +193,34 @@ pub fn sample_ipfix_config() -> IPFixConfig {
                 template_id: 300,
                 records: vec![{
                     let mut map = serde_yaml::Mapping::new();
-                    map.insert(Value::String("source_ipv4_address".to_string()), Value::String("172.20.0.100".to_string()));
-                    map.insert(Value::String("destination_ipv4_address".to_string()), Value::String("198.51.100.10".to_string()));
-                    map.insert(Value::String("packet_delta_count".to_string()), Value::Number(500.into()));
-                    map.insert(Value::String("octet_delta_count".to_string()), Value::Number(125000.into()));
-                    map.insert(Value::String("source_transport_port".to_string()), Value::Number(50122.into()));
-                    map.insert(Value::String("destination_transport_port".to_string()), Value::Number(22.into()));
-                    map.insert(Value::String("protocol_identifier".to_string()), Value::Number(6.into()));
+                    map.insert(
+                        Value::String("source_ipv4_address".to_string()),
+                        Value::String("172.20.0.100".to_string()),
+                    );
+                    map.insert(
+                        Value::String("destination_ipv4_address".to_string()),
+                        Value::String("198.51.100.10".to_string()),
+                    );
+                    map.insert(
+                        Value::String("packet_delta_count".to_string()),
+                        Value::Number(500.into()),
+                    );
+                    map.insert(
+                        Value::String("octet_delta_count".to_string()),
+                        Value::Number(125000.into()),
+                    );
+                    map.insert(
+                        Value::String("source_transport_port".to_string()),
+                        Value::Number(50122.into()),
+                    );
+                    map.insert(
+                        Value::String("destination_transport_port".to_string()),
+                        Value::Number(22.into()),
+                    );
+                    map.insert(
+                        Value::String("protocol_identifier".to_string()),
+                        Value::Number(6.into()),
+                    );
                     Value::Mapping(map)
                 }],
             },

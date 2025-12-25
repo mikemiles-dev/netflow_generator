@@ -1,6 +1,8 @@
 use crate::config::schema::{V9Config, V9FlowSet as ConfigV9FlowSet};
 use crate::error::{NetflowError, Result};
-use crate::generator::field_serializer::{serialize_field_value, get_field_value, v9_field_id_to_name};
+use crate::generator::field_serializer::{
+    get_field_value, serialize_field_value, v9_field_id_to_name,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build NetFlow V9 packets from configuration
@@ -17,10 +19,16 @@ pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
 
     for flowset in &config.flowsets {
         match flowset {
-            ConfigV9FlowSet::Template { template_id, fields } => {
+            ConfigV9FlowSet::Template {
+                template_id,
+                fields,
+            } => {
                 templates.push((*template_id, fields.clone()));
             }
-            ConfigV9FlowSet::Data { template_id, records } => {
+            ConfigV9FlowSet::Data {
+                template_id,
+                records,
+            } => {
                 data_flowsets.push((*template_id, records.clone()));
             }
         }
@@ -191,7 +199,8 @@ fn build_data_packet(
             let field_name = v9_field_id_to_name(field_type);
 
             // Get field value from record or use zero
-            let value = get_field_value(record, field_name).unwrap_or(serde_yaml::Value::Number(0.into()));
+            let value =
+                get_field_value(record, field_name).unwrap_or(serde_yaml::Value::Number(0.into()));
 
             // Serialize the field value
             let bytes = serialize_field_value(&value, field.field_length);

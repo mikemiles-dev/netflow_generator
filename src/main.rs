@@ -6,11 +6,11 @@ mod transmitter;
 
 use clap::Parser;
 use cli::Cli;
-use config::{parse_yaml_file, validate_config, FlowConfig};
+use config::{FlowConfig, parse_yaml_file, validate_config};
 use error::Result;
 use std::net::SocketAddr;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 fn main() -> Result<()> {
     // Parse CLI arguments
@@ -28,7 +28,10 @@ fn main() -> Result<()> {
         // Continuous mode (default)
         let interval_secs = args.interval.unwrap_or(2);
         if args.verbose {
-            println!("Continuous mode: sending flows every {} seconds (Ctrl+C to stop)", interval_secs);
+            println!(
+                "Continuous mode: sending flows every {} seconds (Ctrl+C to stop)",
+                interval_secs
+            );
         }
 
         // Load config once if provided
@@ -80,7 +83,10 @@ fn main() -> Result<()> {
                 let output_with_iteration = if iteration > 1 {
                     let mut path = output_path.clone();
                     let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-                    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+                    let ext = path
+                        .extension()
+                        .map(|e| format!(".{}", e.to_string_lossy()))
+                        .unwrap_or_default();
                     path.set_file_name(format!("{}_{}{}", stem, iteration, ext));
                     path
                 } else {
@@ -201,13 +207,16 @@ fn generate_packets_from_config(config: &config::Config, verbose: bool) -> Resul
 fn parse_destination(args: &Cli) -> Result<SocketAddr> {
     if let Some(ref dest_str) = args.dest {
         // Parse from CLI argument
-        dest_str
-            .parse()
-            .map_err(|e| error::NetflowError::InvalidDestination(format!("Invalid destination '{}': {}", dest_str, e)))
+        dest_str.parse().map_err(|e| {
+            error::NetflowError::InvalidDestination(format!(
+                "Invalid destination '{}': {}",
+                dest_str, e
+            ))
+        })
     } else {
         // Use default
-        "127.0.0.1:2055"
-            .parse()
-            .map_err(|e| error::NetflowError::InvalidDestination(format!("Invalid default destination: {}", e)))
+        "127.0.0.1:2055".parse().map_err(|e| {
+            error::NetflowError::InvalidDestination(format!("Invalid default destination: {}", e))
+        })
     }
 }

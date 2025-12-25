@@ -1,6 +1,6 @@
 use crate::config::schema::V5Config;
 use crate::error::{NetflowError, Result};
-use netflow_parser::static_versions::v5::{V5, Header, FlowSet};
+use netflow_parser::static_versions::v5::{FlowSet, Header, V5};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build a NetFlow V5 packet from configuration
@@ -149,7 +149,7 @@ mod tests {
         let packet = build_v5_packet(config).unwrap();
 
         // Verify packet can be parsed back
-        let parser = NetflowParser::default();
+        let mut parser = NetflowParser::default();
         let parsed = parser.parse_bytes(&packet);
         assert_eq!(parsed.len(), 1);
     }

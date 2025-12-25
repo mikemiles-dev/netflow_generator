@@ -33,10 +33,7 @@ pub fn serialize_field_value(value: &serde_yaml::Value, field_length: u16) -> Ve
 }
 
 /// Get field value from a YAML mapping by field name
-pub fn get_field_value(
-    record: &serde_yaml::Value,
-    field_name: &str,
-) -> Option<serde_yaml::Value> {
+pub fn get_field_value(record: &serde_yaml::Value, field_name: &str) -> Option<serde_yaml::Value> {
     if let serde_yaml::Value::Mapping(map) = record {
         map.get(serde_yaml::Value::String(field_name.to_string()))
             .cloned()

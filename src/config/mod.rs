@@ -1,7 +1,7 @@
-pub mod schema;
 pub mod parser;
+pub mod schema;
 pub mod validator;
 
-pub use schema::*;
 pub use parser::*;
+pub use schema::*;
 pub use validator::*;
