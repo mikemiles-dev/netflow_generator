@@ -38,7 +38,7 @@ pub fn get_field_value(
     field_name: &str,
 ) -> Option<serde_yaml::Value> {
     if let serde_yaml::Value::Mapping(map) = record {
-        map.get(&serde_yaml::Value::String(field_name.to_string()))
+        map.get(serde_yaml::Value::String(field_name.to_string()))
             .cloned()
     } else {
         None

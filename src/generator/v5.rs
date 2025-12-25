@@ -19,9 +19,9 @@ pub fn build_v5_packet(config: V5Config) -> Result<Vec<u8>> {
         .flowsets
         .iter()
         .map(|fs| FlowSet {
-            src_addr: fs.src_addr.into(),
-            dst_addr: fs.dst_addr.into(),
-            next_hop: fs.next_hop.into(),
+            src_addr: fs.src_addr,
+            dst_addr: fs.dst_addr,
+            next_hop: fs.next_hop,
             input: fs.input,
             output: fs.output,
             d_pkts: fs.d_pkts,

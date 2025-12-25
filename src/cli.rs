@@ -35,11 +35,18 @@ pub struct Cli {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Continuously generate and send flows every N seconds
+    /// Continuously generate and send flows every N seconds (default: 2)
     ///
-    /// If specified, the generator will loop indefinitely, sending
-    /// flows at the specified interval. Default is 2 seconds.
-    /// Press Ctrl+C to stop.
-    #[arg(short, long, value_name = "SECONDS", default_missing_value = "2", num_args = 0..=1)]
+    /// By default, the generator runs continuously, sending flows
+    /// every 2 seconds. Use --once to send flows only once.
+    /// Press Ctrl+C to stop continuous mode.
+    #[arg(short, long, value_name = "SECONDS", default_value = "2", default_missing_value = "2", num_args = 0..=1)]
     pub interval: Option<u64>,
+
+    /// Send flows once and exit (disables continuous mode)
+    ///
+    /// Use this flag to override the default continuous behavior
+    /// and send flows only once.
+    #[arg(long, conflicts_with = "interval")]
+    pub once: bool,
 }

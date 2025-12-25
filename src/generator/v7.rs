@@ -19,9 +19,9 @@ pub fn build_v7_packet(config: V7Config) -> Result<Vec<u8>> {
         .flowsets
         .iter()
         .map(|fs| FlowSet {
-            src_addr: fs.src_addr.into(),
-            dst_addr: fs.dst_addr.into(),
-            next_hop: fs.next_hop.into(),
+            src_addr: fs.src_addr,
+            dst_addr: fs.dst_addr,
+            next_hop: fs.next_hop,
             input: fs.input,
             output: fs.output,
             d_pkts: fs.d_pkts,
@@ -40,7 +40,7 @@ pub fn build_v7_packet(config: V7Config) -> Result<Vec<u8>> {
             src_mask: fs.src_mask,
             dst_mask: fs.dst_mask,
             flags_fields_invalid: fs.flags2,
-            router_src: fs.router_src.into(),
+            router_src: fs.router_src,
         })
         .collect();
 

@@ -4,10 +4,6 @@ use std::error::Error as StdError;
 /// Custom error types for the NetFlow generator
 #[derive(Error, Debug)]
 pub enum NetflowError {
-    /// Configuration-related errors
-    #[error("Configuration error: {0}")]
-    Config(String),
-
     /// YAML parsing errors
     #[error("Failed to parse YAML: {0}")]
     YamlParse(#[from] serde_yaml::Error),

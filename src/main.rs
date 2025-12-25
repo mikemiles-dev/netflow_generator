@@ -20,8 +20,13 @@ fn main() -> Result<()> {
         println!("NetFlow Generator starting...");
     }
 
-    // Check if we're in continuous mode
-    if let Some(interval_secs) = args.interval {
+    // Check if we're in single-shot mode or continuous mode
+    if args.once {
+        // Single-shot mode
+        run_once(&args)?;
+    } else {
+        // Continuous mode (default)
+        let interval_secs = args.interval.unwrap_or(2);
         if args.verbose {
             println!("Continuous mode: sending flows every {} seconds (Ctrl+C to stop)", interval_secs);
         }
@@ -31,7 +36,7 @@ fn main() -> Result<()> {
             if args.verbose {
                 println!("Loading configuration from {:?}", config_path);
             }
-            let cfg = parse_yaml_file(&config_path)?;
+            let cfg = parse_yaml_file(config_path)?;
             validate_config(&cfg)?;
             if args.verbose {
                 println!("Configuration loaded: {} flow(s)", cfg.flows.len());
@@ -97,58 +102,61 @@ fn main() -> Result<()> {
             }
             thread::sleep(Duration::from_secs(interval_secs));
         }
-    } else {
-        // Single-shot mode (original behavior)
-        // Generate or load packets
-        let packets = if let Some(ref config_path) = args.config {
-            // Load and parse YAML configuration
-            if args.verbose {
-                println!("Loading configuration from {:?}", config_path);
-            }
-
-            let config = parse_yaml_file(&config_path)?;
-            validate_config(&config)?;
-
-            if args.verbose {
-                println!("Configuration loaded: {} flow(s)", config.flows.len());
-            }
-
-            // Generate packets from config
-            generate_packets_from_config(&config, args.verbose)?
-        } else {
-            // Use default samples
-            if args.verbose {
-                println!("No configuration provided, using default samples");
-            }
-
-            generator::generate_all_samples()?
-        };
-
-        if args.verbose {
-            println!("Generated {} packet(s)", packets.len());
-        }
-
-        // Output packets
-        if let Some(output_path) = args.output {
-            // Write to file
-            transmitter::write_to_file(&packets, &output_path, args.verbose)?;
-        } else {
-            // Send via UDP
-            let destination = parse_destination(&args)?;
-
-            if args.verbose {
-                println!("Transmitting packets to {}", destination);
-            }
-
-            transmitter::send_udp(&packets, destination, args.verbose)?;
-        }
-
-        if args.verbose {
-            println!("Done!");
-        }
-
-        Ok(())
     }
+
+    Ok(())
+}
+
+fn run_once(args: &Cli) -> Result<()> {
+    // Generate or load packets
+    let packets = if let Some(ref config_path) = args.config {
+        // Load and parse YAML configuration
+        if args.verbose {
+            println!("Loading configuration from {:?}", config_path);
+        }
+
+        let config = parse_yaml_file(config_path)?;
+        validate_config(&config)?;
+
+        if args.verbose {
+            println!("Configuration loaded: {} flow(s)", config.flows.len());
+        }
+
+        // Generate packets from config
+        generate_packets_from_config(&config, args.verbose)?
+    } else {
+        // Use default samples
+        if args.verbose {
+            println!("No configuration provided, using default samples");
+        }
+
+        generator::generate_all_samples()?
+    };
+
+    if args.verbose {
+        println!("Generated {} packet(s)", packets.len());
+    }
+
+    // Output packets
+    if let Some(ref output_path) = args.output {
+        // Write to file
+        transmitter::write_to_file(&packets, output_path, args.verbose)?;
+    } else {
+        // Send via UDP
+        let destination = parse_destination(args)?;
+
+        if args.verbose {
+            println!("Transmitting packets to {}", destination);
+        }
+
+        transmitter::send_udp(&packets, destination, args.verbose)?;
+    }
+
+    if args.verbose {
+        println!("Done!");
+    }
+
+    Ok(())
 }
 
 fn generate_packets_from_config(config: &config::Config, verbose: bool) -> Result<Vec<Vec<u8>>> {

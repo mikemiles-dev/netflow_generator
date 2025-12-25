@@ -1,5 +1,5 @@
 use crate::config::schema::Config;
-use crate::error::{NetflowError, Result};
+use crate::error::Result;
 use std::fs;
 use std::path::Path;
 
