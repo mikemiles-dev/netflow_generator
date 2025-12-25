@@ -87,9 +87,10 @@ fn get_header_values(config: &IPFixConfig) -> Result<(u32, u32, u32)> {
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
 
     let export_time = if let Some(ref h) = config.header {
-        h.export_time.unwrap_or(now.as_secs() as u32)
+        h.export_time
+            .unwrap_or_else(|| u32::try_from(now.as_secs()).unwrap_or(u32::MAX))
     } else {
-        now.as_secs() as u32
+        u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
     };
 
     let sequence_number = if let Some(ref h) = config.header {
@@ -137,7 +138,9 @@ fn build_template_packet(
 
         // Template ID and field count
         packet.extend_from_slice(&template_id.to_be_bytes());
-        let field_count = fields.len() as u16;
+        let field_count = u16::try_from(fields.len()).map_err(|_| {
+            NetflowError::Generation("Too many fields in template (max 65535)".to_string())
+        })?;
         packet.extend_from_slice(&field_count.to_be_bytes());
 
         // Template fields
@@ -150,18 +153,36 @@ fn build_template_packet(
         }
 
         // Add padding if needed (set length must be multiple of 4)
-        while (packet.len() - set_length_pos + 2) % 4 != 0 {
+        while packet
+            .len()
+            .checked_sub(set_length_pos)
+            .and_then(|v| v.checked_add(2))
+            .map(|v| v % 4 != 0)
+            .unwrap_or(false)
+        {
             packet.push(0);
         }
 
         // Update set length
-        let set_length = (packet.len() - set_length_pos + 2) as u16;
-        packet[set_length_pos..set_length_pos + 2].copy_from_slice(&set_length.to_be_bytes());
+        let set_length = packet
+            .len()
+            .checked_sub(set_length_pos)
+            .and_then(|v| v.checked_add(2))
+            .and_then(|v| u16::try_from(v).ok())
+            .ok_or_else(|| NetflowError::Generation("Set length overflow".to_string()))?;
+        let end_pos = set_length_pos
+            .checked_add(2)
+            .ok_or_else(|| NetflowError::Generation("Array index overflow".to_string()))?;
+        packet[set_length_pos..end_pos].copy_from_slice(&set_length.to_be_bytes());
     }
 
     // Update total packet length
-    let total_length = packet.len() as u16;
-    packet[length_pos..length_pos + 2].copy_from_slice(&total_length.to_be_bytes());
+    let total_length = u16::try_from(packet.len())
+        .map_err(|_| NetflowError::Generation("Packet length exceeds u16::MAX".to_string()))?;
+    let end_pos = length_pos
+        .checked_add(2)
+        .ok_or_else(|| NetflowError::Generation("Array index overflow".to_string()))?;
+    packet[length_pos..end_pos].copy_from_slice(&total_length.to_be_bytes());
 
     Ok(packet)
 }
@@ -213,17 +234,35 @@ fn build_data_packet(
     }
 
     // Add padding if needed (set length must be multiple of 4)
-    while (packet.len() - set_length_pos + 2) % 4 != 0 {
+    while packet
+        .len()
+        .checked_sub(set_length_pos)
+        .and_then(|v| v.checked_add(2))
+        .map(|v| v % 4 != 0)
+        .unwrap_or(false)
+    {
         packet.push(0);
     }
 
     // Update set length
-    let set_length = (packet.len() - set_length_pos + 2) as u16;
-    packet[set_length_pos..set_length_pos + 2].copy_from_slice(&set_length.to_be_bytes());
+    let set_length = packet
+        .len()
+        .checked_sub(set_length_pos)
+        .and_then(|v| v.checked_add(2))
+        .and_then(|v| u16::try_from(v).ok())
+        .ok_or_else(|| NetflowError::Generation("Set length overflow".to_string()))?;
+    let set_end_pos = set_length_pos
+        .checked_add(2)
+        .ok_or_else(|| NetflowError::Generation("Array index overflow".to_string()))?;
+    packet[set_length_pos..set_end_pos].copy_from_slice(&set_length.to_be_bytes());
 
     // Update total packet length
-    let total_length = packet.len() as u16;
-    packet[length_pos..length_pos + 2].copy_from_slice(&total_length.to_be_bytes());
+    let total_length = u16::try_from(packet.len())
+        .map_err(|_| NetflowError::Generation("Packet length exceeds u16::MAX".to_string()))?;
+    let length_end_pos = length_pos
+        .checked_add(2)
+        .ok_or_else(|| NetflowError::Generation("Array index overflow".to_string()))?;
+    packet[length_pos..length_end_pos].copy_from_slice(&total_length.to_be_bytes());
 
     Ok(packet)
 }

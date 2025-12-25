@@ -52,12 +52,8 @@ fn main() -> Result<()> {
             None
         };
 
-        // Get destination once
-        let destination = if args.output.is_none() {
-            Some(parse_destination(&args)?)
-        } else {
-            None
-        };
+        // Get destination (needed for both UDP transmission and pcap file generation)
+        let destination = parse_destination(&args)?;
 
         // Loop indefinitely
         let mut iteration = 1;
@@ -92,12 +88,17 @@ fn main() -> Result<()> {
                 } else {
                     output_path.clone()
                 };
-                transmitter::write_to_file(&packets, &output_with_iteration, args.verbose)?;
-            } else if let Some(dest) = destination {
+                transmitter::write_to_file(
+                    &packets,
+                    &output_with_iteration,
+                    destination,
+                    args.verbose,
+                )?;
+            } else {
                 if args.verbose {
-                    println!("Transmitting packets to {}", dest);
+                    println!("Transmitting packets to {}", destination);
                 }
-                transmitter::send_udp(&packets, dest, args.verbose)?;
+                transmitter::send_udp(&packets, destination, args.verbose)?;
             }
 
             iteration += 1;
@@ -143,14 +144,15 @@ fn run_once(args: &Cli) -> Result<()> {
         println!("Generated {} packet(s)", packets.len());
     }
 
+    // Get destination (needed for both UDP transmission and pcap file generation)
+    let destination = parse_destination(args)?;
+
     // Output packets
     if let Some(ref output_path) = args.output {
-        // Write to file
-        transmitter::write_to_file(&packets, output_path, args.verbose)?;
+        // Write to pcap file
+        transmitter::write_to_file(&packets, output_path, destination, args.verbose)?;
     } else {
         // Send via UDP
-        let destination = parse_destination(args)?;
-
         if args.verbose {
             println!("Transmitting packets to {}", destination);
         }

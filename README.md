@@ -8,7 +8,8 @@ A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7
 - **YAML Configuration**: Define custom flow records with full field-level control
 - **Default Sample Mode**: Built-in sample packets for quick testing
 - **Continuous Generation**: Send flows at configurable intervals for ongoing traffic simulation
-- **Flexible Output**: Send packets via UDP or save to file
+- **Flexible Output**: Send packets via UDP or export to pcap file
+- **Pcap Export**: Save generated traffic to pcap files for analysis with Wireshark, tcpdump, etc.
 - **Template Support**: Full support for NetFlow v9 and IPFIX template and data records
 - **Configurable Destination**: Override destination IP and port via CLI
 - **Validation**: Automatic validation of configuration files
@@ -95,16 +96,29 @@ netflow_generator --config flows.yaml --dest 192.168.1.100:2055
 cargo run -- --config flows.yaml --dest 192.168.1.100:2055
 ```
 
-### Save to File
+### Save to Pcap File
 
-Save generated packets to a binary file instead of sending:
+Save generated packets to a pcap file instead of sending via UDP. The pcap file includes proper Ethernet/IP/UDP headers and can be analyzed with Wireshark, tcpdump, and other network analysis tools:
 
 ```bash
 # Using compiled binary
-netflow_generator --config flows.yaml --output packets.bin
+netflow_generator --config flows.yaml --output packets.pcap
 
 # Using cargo run
-cargo run -- --config flows.yaml --output packets.bin
+cargo run -- --config flows.yaml --output packets.pcap
+
+# Analyze with tcpdump
+tcpdump -r packets.pcap -n -v
+
+# Or open in Wireshark
+wireshark packets.pcap
+```
+
+The `--dest` argument controls the destination IP and port in the pcap headers:
+
+```bash
+# Create pcap with custom destination
+netflow_generator --output packets.pcap --dest 192.168.1.100:9995
 ```
 
 ### Verbose Output
@@ -139,15 +153,15 @@ cargo run -- --config flows.yaml --interval 10 --verbose
 
 The generator will loop indefinitely, sending packets at the specified interval. Press Ctrl+C to stop.
 
-Note: When using `--output` in continuous mode, each iteration will create a separate file with an iteration number appended (e.g., `packets.bin`, `packets_2.bin`, `packets_3.bin`).
+Note: When using `--output` in continuous mode, each iteration will create a separate pcap file with an iteration number appended (e.g., `packets.pcap`, `packets_2.pcap`, `packets_3.pcap`).
 
 ## CLI Options
 
 ```
 Options:
   -c, --config <FILE>        Path to YAML configuration file
-  -d, --dest <IP:PORT>       Destination address (overrides config)
-  -o, --output <FILE>        Save packets to file instead of sending
+  -d, --dest <IP:PORT>       Destination address (overrides config, also used for pcap headers)
+  -o, --output <FILE>        Save packets to pcap file instead of sending via UDP
   -v, --verbose              Enable verbose output
   -i, --interval [SECONDS]   Send flows every N seconds (default: 2)
                              Continuous mode is the default behavior
@@ -546,7 +560,7 @@ The project is organized into several modules:
   - `ipfix.rs` - IPFIX template and data packet builder
   - `samples.rs` - Default sample packet definitions
   - `field_serializer.rs` - Field value serialization helpers
-- **transmitter**: UDP transmission and file output
+- **transmitter**: UDP transmission and pcap file export
 - **error**: Custom error types using thiserror
 
 ## Dependencies
@@ -557,6 +571,7 @@ The project is organized into several modules:
 - `clap` (4.5) - CLI argument parsing
 - `tokio` (1.42) - Async runtime for networking
 - `thiserror` (2.0) - Custom error types
+- `pcap-file` (2.0) - Pcap file generation
 
 ## Contributing
 
