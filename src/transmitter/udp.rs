@@ -42,40 +42,66 @@ pub fn write_to_file(
     path: &std::path::Path,
     destination: SocketAddr,
     verbose: bool,
+    first_write: bool,
 ) -> Result<()> {
-    use pcap_file::pcap::{PcapHeader, PcapPacket, PcapWriter};
-    use std::fs::File;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let file = File::create(path)?;
-
-    // Create pcap writer with default header
-    let pcap_header = PcapHeader {
-        datalink: pcap_file::DataLink::ETHERNET,
-        ..Default::default()
-    };
-    let mut pcap_writer = PcapWriter::with_header(file, pcap_header)
-        .map_err(|e| NetflowError::Io(std::io::Error::other(e)))?;
+    use pcap_file::pcap::PcapHeader;
+    use std::fs::{File, OpenOptions};
 
     if verbose {
+        let action = if first_write { "Writing" } else { "Appending" };
         println!(
-            "Writing {} packet(s) to {:?} in pcap format",
+            "{} {} packet(s) to {:?} in pcap format",
+            action,
             packets.len(),
             path
         );
     }
 
-    // Source IP for our packets (arbitrary)
+    if first_write {
+        // Create a new file with pcap header
+        use pcap_file::pcap::PcapWriter;
+
+        let file = File::create(path)?;
+        let pcap_header = PcapHeader {
+            datalink: pcap_file::DataLink::ETHERNET,
+            ..Default::default()
+        };
+        let mut pcap_writer = PcapWriter::with_header(file, pcap_header)
+            .map_err(|e| NetflowError::Io(std::io::Error::other(e)))?;
+
+        write_packets_to_pcap(&mut pcap_writer, packets, destination, verbose)?;
+    } else {
+        // Append to existing file without header
+        let mut file = OpenOptions::new().write(true).append(true).open(path)?;
+
+        append_packets_to_pcap(&mut file, packets, destination, verbose)?;
+    }
+
+    if verbose {
+        println!("Successfully wrote all packets to pcap file");
+    }
+
+    Ok(())
+}
+
+/// Write packets using PcapWriter (for new files)
+fn write_packets_to_pcap<W: std::io::Write>(
+    pcap_writer: &mut pcap_file::pcap::PcapWriter<W>,
+    packets: &[Vec<u8>],
+    destination: SocketAddr,
+    verbose: bool,
+) -> Result<()> {
+    use pcap_file::pcap::PcapPacket;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     let src_ip = std::net::Ipv4Addr::new(10, 0, 0, 1);
     let src_port: u16 = 12345;
 
     for (i, netflow_payload) in packets.iter().enumerate() {
-        // Get current timestamp as Duration since EPOCH
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default();
 
-        // Build the complete packet: Ethernet + IP + UDP + NetFlow payload
         let packet_data = build_udp_packet(src_ip, src_port, destination, netflow_payload)?;
 
         let pcap_packet = PcapPacket {
@@ -96,8 +122,57 @@ pub fn write_to_file(
         }
     }
 
-    if verbose {
-        println!("Successfully wrote all packets to pcap file");
+    Ok(())
+}
+
+/// Append packets to existing pcap file (without header)
+fn append_packets_to_pcap<W: std::io::Write>(
+    writer: &mut W,
+    packets: &[Vec<u8>],
+    destination: SocketAddr,
+    verbose: bool,
+) -> Result<()> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let src_ip = std::net::Ipv4Addr::new(10, 0, 0, 1);
+    let src_port: u16 = 12345;
+
+    for (i, netflow_payload) in packets.iter().enumerate() {
+        // Get current timestamp as Duration since EPOCH
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+
+        // Build the complete packet: Ethernet + IP + UDP + NetFlow payload
+        let packet_data = build_udp_packet(src_ip, src_port, destination, netflow_payload)?;
+
+        // Manually write pcap packet record format
+        // See: https://wiki.wireshark.org/Development/LibpcapFileFormat
+
+        let packet_len = u32::try_from(packet_data.len())
+            .map_err(|_| NetflowError::InvalidPacket("Packet size exceeds u32::MAX".to_string()))?;
+
+        // Timestamp seconds (4 bytes, little-endian for standard pcap)
+        let ts_sec = u32::try_from(timestamp.as_secs()).unwrap_or(u32::MAX);
+        writer.write_all(&ts_sec.to_le_bytes())?;
+
+        // Timestamp microseconds (4 bytes, little-endian)
+        let ts_usec = timestamp.subsec_micros();
+        writer.write_all(&ts_usec.to_le_bytes())?;
+
+        // Captured packet length (4 bytes, little-endian)
+        writer.write_all(&packet_len.to_le_bytes())?;
+
+        // Original packet length (4 bytes, little-endian)
+        writer.write_all(&packet_len.to_le_bytes())?;
+
+        // Packet data
+        writer.write_all(&packet_data)?;
+
+        if verbose {
+            let packet_num = i.checked_add(1).unwrap_or(i);
+            println!("Wrote packet {} ({} bytes)", packet_num, packet_data.len());
+        }
     }
 
     Ok(())

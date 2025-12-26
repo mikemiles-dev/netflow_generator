@@ -1,3 +1,10 @@
+# 0.2.2
+* **Fix**: Continuous mode with `--output` now appends to a single pcap file instead of creating multiple files
+  - First iteration creates the pcap file with header
+  - Subsequent iterations append packets to the same file
+  - Eliminates the previous behavior of creating `output.pcap`, `output_2.pcap`, `output_3.pcap`, etc.
+  - Results in one consolidated pcap file for the entire continuous run
+
 # 0.2.1
   - Added multi-threading support for parallel packet generation
   - New `--threads` CLI option to configure thread pool size (default: 4)
