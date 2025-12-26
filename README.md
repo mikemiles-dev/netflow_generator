@@ -163,6 +163,7 @@ Options:
   -d, --dest <IP:PORT>       Destination address (overrides config, also used for pcap headers)
   -o, --output <FILE>        Save packets to pcap file instead of sending via UDP
   -v, --verbose              Enable verbose output
+  -t, --threads <NUMBER>     Number of threads for parallel packet generation (default: 4)
   -i, --interval [SECONDS]   Send flows every N seconds (default: 2)
                              Continuous mode is the default behavior
       --once                 Send flows once and exit (disables continuous mode)

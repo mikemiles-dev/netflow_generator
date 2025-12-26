@@ -32,9 +32,13 @@ pub enum NetflowError {
     #[error("Invalid packet: {0}")]
     InvalidPacket(String),
 
+    /// Configuration errors
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+
     /// NetFlow parser errors
     #[error("NetFlow parser error: {0}")]
-    ParserError(#[from] Box<dyn StdError>),
+    ParserError(#[from] Box<dyn StdError + Send>),
 }
 
 /// Result type alias for convenience
