@@ -53,4 +53,13 @@ pub struct Cli {
     /// and send flows only once.
     #[arg(long, conflicts_with = "interval")]
     pub once: bool,
+
+    /// Number of threads to use for parallel packet generation
+    ///
+    /// When processing multiple flows from a configuration file,
+    /// this controls how many flows are generated in parallel.
+    /// Higher values can improve performance when generating
+    /// many flows, but will use more CPU and memory.
+    #[arg(short = 't', long, default_value = "4")]
+    pub threads: usize,
 }

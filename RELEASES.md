@@ -1,3 +1,11 @@
+# 0.2.1
+  - Added multi-threading support for parallel packet generation
+  - New `--threads` CLI option to configure thread pool size (default: 4)
+  - Flows from configuration files are now generated in parallel using rayon
+  - Significant performance improvement when processing multiple flows
+  - Thread pool is configurable from 1 to any desired number of threads
+  - Added Configuration error variant for thread pool setup errors
+
 # 0.2.0
 * **BREAKING**: File output now exports to PCAP format instead of raw binary
   - Generated pcap files include proper Ethernet/IP/UDP headers

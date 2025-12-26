@@ -8,6 +8,7 @@ use clap::Parser;
 use cli::Cli;
 use config::{FlowConfig, parse_yaml_file, validate_config};
 use error::Result;
+use rayon::prelude::*;
 use std::net::SocketAddr;
 use std::thread;
 use std::time::Duration;
@@ -16,8 +17,17 @@ fn main() -> Result<()> {
     // Parse CLI arguments
     let args = Cli::parse();
 
+    // Configure rayon thread pool
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(args.threads)
+        .build_global()
+        .map_err(|e| {
+            error::NetflowError::Configuration(format!("Failed to configure thread pool: {}", e))
+        })?;
+
     if args.verbose {
         println!("NetFlow Generator starting...");
+        println!("Using {} threads for parallel processing", args.threads);
     }
 
     // Check if we're in single-shot mode or continuous mode
@@ -168,40 +178,44 @@ fn run_once(args: &Cli) -> Result<()> {
 }
 
 fn generate_packets_from_config(config: &config::Config, verbose: bool) -> Result<Vec<Vec<u8>>> {
-    let mut all_packets = Vec::new();
-
-    for flow in &config.flows {
-        match flow {
+    // Process flows in parallel using rayon
+    let results: Result<Vec<Vec<Vec<u8>>>> = config
+        .flows
+        .par_iter()
+        .map(|flow| match flow {
             FlowConfig::V5(v5_config) => {
                 if verbose {
                     println!("Generating NetFlow V5 packet...");
                 }
                 let packet = generator::build_v5_packet(v5_config.clone())?;
-                all_packets.push(packet);
+                Ok(vec![packet])
             }
             FlowConfig::V7(v7_config) => {
                 if verbose {
                     println!("Generating NetFlow V7 packet...");
                 }
                 let packet = generator::build_v7_packet(v7_config.clone())?;
-                all_packets.push(packet);
+                Ok(vec![packet])
             }
             FlowConfig::V9(v9_config) => {
                 if verbose {
                     println!("Generating NetFlow V9 packet(s)...");
                 }
                 let packets = generator::build_v9_packets(v9_config.clone())?;
-                all_packets.extend(packets);
+                Ok(packets)
             }
             FlowConfig::IPFix(ipfix_config) => {
                 if verbose {
                     println!("Generating IPFIX packet(s)...");
                 }
                 let packets = generator::build_ipfix_packets(ipfix_config.clone())?;
-                all_packets.extend(packets);
+                Ok(packets)
             }
-        }
-    }
+        })
+        .collect();
+
+    // Flatten the results into a single vector
+    let all_packets: Vec<Vec<u8>> = results?.into_iter().flatten().collect();
 
     Ok(all_packets)
 }
