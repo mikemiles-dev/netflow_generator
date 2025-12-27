@@ -72,7 +72,7 @@ pub fn write_to_file(
         write_packets_to_pcap(&mut pcap_writer, packets, destination, verbose)?;
     } else {
         // Append to existing file without header
-        let mut file = OpenOptions::new().write(true).append(true).open(path)?;
+        let mut file = OpenOptions::new().append(true).open(path)?;
 
         append_packets_to_pcap(&mut file, packets, destination, verbose)?;
     }
