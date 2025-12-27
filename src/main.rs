@@ -78,6 +78,17 @@ fn main() -> Result<()> {
         // Get destination (needed for both UDP transmission and pcap file generation)
         let destination = parse_destination(&args)?;
 
+        // Create persistent pcap writer if output path is specified
+        let mut pcap_writer = if let Some(ref output_path) = args.output {
+            Some(transmitter::PersistentPcapWriter::new(
+                output_path,
+                destination,
+                args.verbose,
+            )?)
+        } else {
+            None
+        };
+
         // Loop until shutdown signal received
         let mut iteration = 1;
         loop {
@@ -105,16 +116,8 @@ fn main() -> Result<()> {
             }
 
             // Output packets
-            if let Some(ref output_path) = args.output {
-                // Use the first_write flag to determine if we need to create a new file or append
-                let first_write = iteration == 1;
-                transmitter::write_to_file(
-                    &packets,
-                    output_path,
-                    destination,
-                    args.verbose,
-                    first_write,
-                )?;
+            if let Some(ref mut writer) = pcap_writer {
+                writer.write_packets(&packets)?;
             } else {
                 if args.verbose {
                     println!("Transmitting packets to {}", destination);
@@ -134,6 +137,11 @@ fn main() -> Result<()> {
                 }
                 thread::sleep(Duration::from_millis(100));
             }
+        }
+
+        // Close pcap writer if it exists
+        if let Some(writer) = pcap_writer {
+            writer.close()?;
         }
 
         if args.verbose {
