@@ -85,24 +85,14 @@ fn main() -> Result<()> {
 
             // Output packets
             if let Some(ref output_path) = args.output {
-                // Append iteration number to filename for continuous file writes
-                let output_with_iteration = if iteration > 1 {
-                    let mut path = output_path.clone();
-                    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-                    let ext = path
-                        .extension()
-                        .map(|e| format!(".{}", e.to_string_lossy()))
-                        .unwrap_or_default();
-                    path.set_file_name(format!("{}_{}{}", stem, iteration, ext));
-                    path
-                } else {
-                    output_path.clone()
-                };
+                // Use the first_write flag to determine if we need to create a new file or append
+                let first_write = iteration == 1;
                 transmitter::write_to_file(
                     &packets,
-                    &output_with_iteration,
+                    output_path,
                     destination,
                     args.verbose,
+                    first_write,
                 )?;
             } else {
                 if args.verbose {
@@ -159,8 +149,8 @@ fn run_once(args: &Cli) -> Result<()> {
 
     // Output packets
     if let Some(ref output_path) = args.output {
-        // Write to pcap file
-        transmitter::write_to_file(&packets, output_path, destination, args.verbose)?;
+        // Write to pcap file (always first write in single-shot mode)
+        transmitter::write_to_file(&packets, output_path, destination, args.verbose, true)?;
     } else {
         // Send via UDP
         if args.verbose {
