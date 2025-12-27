@@ -10,6 +10,8 @@ use config::{FlowConfig, parse_yaml_file, validate_config};
 use error::Result;
 use rayon::prelude::*;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -44,6 +46,17 @@ fn main() -> Result<()> {
             );
         }
 
+        // Set up Ctrl+C handler for graceful shutdown
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown_clone = shutdown.clone();
+
+        ctrlc::set_handler(move || {
+            shutdown_clone.store(true, Ordering::Relaxed);
+        })
+        .map_err(|e| {
+            error::NetflowError::Configuration(format!("Failed to set Ctrl+C handler: {}", e))
+        })?;
+
         // Load config once if provided
         let config = if let Some(ref config_path) = args.config {
             if args.verbose {
@@ -65,9 +78,17 @@ fn main() -> Result<()> {
         // Get destination (needed for both UDP transmission and pcap file generation)
         let destination = parse_destination(&args)?;
 
-        // Loop indefinitely
+        // Loop until shutdown signal received
         let mut iteration = 1;
         loop {
+            // Check for shutdown signal
+            if shutdown.load(Ordering::Relaxed) {
+                if args.verbose {
+                    println!("\nReceived shutdown signal, exiting gracefully...");
+                }
+                break;
+            }
+
             if args.verbose {
                 println!("\n--- Iteration {} ---", iteration);
             }
@@ -103,11 +124,20 @@ fn main() -> Result<()> {
 
             iteration += 1;
 
-            // Sleep for the specified interval
-            if args.verbose {
-                println!("Sleeping for {} seconds...", interval_secs);
+            // Sleep for the specified interval, checking for shutdown periodically
+            let sleep_start = std::time::Instant::now();
+            let sleep_duration = Duration::from_secs(interval_secs);
+
+            while sleep_start.elapsed() < sleep_duration {
+                if shutdown.load(Ordering::Relaxed) {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(100));
             }
-            thread::sleep(Duration::from_secs(interval_secs));
+        }
+
+        if args.verbose {
+            println!("Shutdown complete.");
         }
     }
 

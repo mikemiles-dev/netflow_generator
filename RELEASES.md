@@ -4,6 +4,11 @@
   - Subsequent iterations append packets to the same file
   - Eliminates the previous behavior of creating `output.pcap`, `output_2.pcap`, `output_3.pcap`, etc.
   - Results in one consolidated pcap file for the entire continuous run
+* **Fix**: Graceful shutdown handling prevents pcap file corruption when using Ctrl+C
+  - Added signal handler to intercept Ctrl+C (SIGINT) in continuous mode
+  - Program now exits cleanly, properly flushing and closing pcap files
+  - Prevents corrupted pcap files that were unreadable by Wireshark/tcpdump
+  - Shutdown flag is checked during loop iterations and sleep intervals for responsive exit
 
 # 0.2.1
   - Added multi-threading support for parallel packet generation
