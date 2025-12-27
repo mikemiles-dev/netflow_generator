@@ -1,5 +1,7 @@
 use crate::error::{NetflowError, Result};
+use std::fs::File;
 use std::net::{SocketAddr, UdpSocket};
+use std::path::Path;
 
 /// Send packets via UDP
 pub fn send_udp(packets: &[Vec<u8>], destination: SocketAddr, verbose: bool) -> Result<()> {
@@ -34,6 +36,69 @@ pub fn send_udp(packets: &[Vec<u8>], destination: SocketAddr, verbose: bool) -> 
     }
 
     Ok(())
+}
+
+/// Persistent pcap writer for continuous mode
+pub struct PersistentPcapWriter {
+    writer: pcap_file::pcap::PcapWriter<File>,
+    destination: SocketAddr,
+    verbose: bool,
+}
+
+impl PersistentPcapWriter {
+    /// Create a new persistent pcap writer
+    pub fn new(path: &Path, destination: SocketAddr, verbose: bool) -> Result<Self> {
+        use pcap_file::pcap::{PcapHeader, PcapWriter};
+
+        let file = File::create(path)?;
+        let pcap_header = PcapHeader {
+            datalink: pcap_file::DataLink::ETHERNET,
+            ..Default::default()
+        };
+        let writer = PcapWriter::with_header(file, pcap_header)
+            .map_err(|e| NetflowError::Io(std::io::Error::other(e)))?;
+
+        if verbose {
+            println!("Created pcap file at {:?}", path);
+        }
+
+        Ok(Self {
+            writer,
+            destination,
+            verbose,
+        })
+    }
+
+    /// Write packets to the pcap file
+    pub fn write_packets(&mut self, packets: &[Vec<u8>]) -> Result<()> {
+        if self.verbose {
+            println!("Writing {} packet(s) to pcap file", packets.len());
+        }
+
+        write_packets_to_pcap(&mut self.writer, packets, self.destination, self.verbose)?;
+
+        if self.verbose {
+            println!("Successfully wrote packets to pcap file");
+        }
+
+        Ok(())
+    }
+
+    /// Close the pcap writer (drops the writer which flushes automatically)
+    pub fn close(self) -> Result<()> {
+        if self.verbose {
+            println!("Closing pcap file...");
+        }
+
+        // Drop the writer which will flush automatically
+        drop(self.writer);
+
+        if self.verbose {
+            println!("Pcap file closed successfully");
+        }
+
+        Ok(())
+    }
 }
 
 /// Write packets to a pcap file
