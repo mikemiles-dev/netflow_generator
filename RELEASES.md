@@ -1,3 +1,6 @@
+# 0.2.3
+* Bump release for cargo publish and README updates.
+
 # 0.2.2
 * **Fix**: Continuous mode with `--output` now appends to a single pcap file instead of creating multiple files
   - First iteration creates the pcap file with header
