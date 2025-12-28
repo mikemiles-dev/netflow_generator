@@ -16,6 +16,63 @@ A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7
 
 ## Installation
 
+### Download Pre-built Binaries
+
+Download the latest release for your platform from the [releases page](https://github.com/mikemiles-dev/netflow_generator/releases):
+
+#### Linux (x86_64)
+```bash
+curl -L https://github.com/mikemiles-dev/netflow_generator/releases/latest/download/netflow_generator-linux-x86_64.tar.gz | tar xz
+./netflow_generator-linux-x86_64 --help
+```
+
+#### Linux (ARM64)
+```bash
+curl -L https://github.com/mikemiles-dev/netflow_generator/releases/latest/download/netflow_generator-linux-aarch64.tar.gz | tar xz
+./netflow_generator-linux-aarch64 --help
+```
+
+#### macOS (Intel)
+```bash
+curl -L https://github.com/mikemiles-dev/netflow_generator/releases/latest/download/netflow_generator-macos-x86_64.tar.gz | tar xz
+./netflow_generator-macos-x86_64 --help
+```
+
+#### macOS (Apple Silicon)
+```bash
+curl -L https://github.com/mikemiles-dev/netflow_generator/releases/latest/download/netflow_generator-macos-aarch64.tar.gz | tar xz
+./netflow_generator-macos-aarch64 --help
+```
+
+#### Windows (x86_64)
+Download the `.zip` file from the [releases page](https://github.com/mikemiles-dev/netflow_generator/releases/latest) and extract it.
+
+```powershell
+# After extracting the zip file
+.\netflow_generator-windows-x86_64.exe --help
+```
+
+### Using Docker
+
+Pull and run the latest Docker image from GitHub Container Registry:
+
+```bash
+# Run with default sample packets
+docker run --rm ghcr.io/mikemiles-dev/netflow_generator:latest
+
+# Run with custom configuration
+docker run --rm -v $(pwd)/flows.yaml:/app/flows.yaml ghcr.io/mikemiles-dev/netflow_generator:latest --config /app/flows.yaml
+
+# Run with examples
+docker run --rm ghcr.io/mikemiles-dev/netflow_generator:latest --config /examples/v9_sample.yaml --verbose
+
+# Run in single-shot mode
+docker run --rm ghcr.io/mikemiles-dev/netflow_generator:latest --once
+
+# Override destination
+docker run --rm ghcr.io/mikemiles-dev/netflow_generator:latest --dest 192.168.1.100:2055
+```
+
 ### Using Cargo Install
 
 Install directly from crates.io (once published):
@@ -27,13 +84,13 @@ cargo install netflow_generator
 Or install from the git repository:
 
 ```bash
-cargo install --git https://github.com/yourusername/netflow_generator.git
+cargo install --git https://github.com/mikemiles-dev/netflow_generator.git
 ```
 
 ### Building from Source
 
 ```bash
-git clone https://github.com/yourusername/netflow_generator.git
+git clone https://github.com/mikemiles-dev/netflow_generator.git
 cd netflow_generator
 cargo build --release
 ```
