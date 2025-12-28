@@ -73,6 +73,8 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.platform.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Prepare binary (Unix)
         if: matrix.platform.os != 'windows-latest'
