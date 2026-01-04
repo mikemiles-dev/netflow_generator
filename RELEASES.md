@@ -1,3 +1,13 @@
+# 0.2.4
+* **Fix**: UDP socket now uses fixed source port 2055 instead of ephemeral ports
+  - Matches real NetFlow exporter behavior where routers use consistent source ports
+  - Fixes template collision issues with RFC-compliant collectors (AutoScopedParser, RouterScopedParser)
+  - RFC 7011 (IPFIX) and RFC 3954 (NetFlow v9) specify scoping by (source_address, observation_domain_id/source_id)
+  - Previous ephemeral port behavior caused each packet to be treated as a different source
+  - Port 2055 is the standard NetFlow export port used by real routers
+* **Dependency**: Updated netflow_parser from 0.7.0 to 0.8.0
+* **Documentation**: Added "Network Behavior" section to README explaining fixed source port rationale
+
 # 0.2.3
 * Bump release for cargo publish and README updates.
 

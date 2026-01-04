@@ -14,6 +14,17 @@ A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7
 - **Configurable Destination**: Override destination IP and port via CLI
 - **Validation**: Automatic validation of configuration files
 
+## Network Behavior
+
+This generator mimics real NetFlow exporter behavior by using a **fixed source port (2055)** for UDP transmissions. This is critical for proper operation with NetFlow collectors that implement RFC-compliant scoping:
+
+- **Real routers** use consistent source ports (not ephemeral ports) for NetFlow exports
+- **RFC 7011 (IPFIX)** and **RFC 3954 (NetFlow v9)** specify that collectors should key template caches on `(source_address, observation_domain_id)` or `(source_address, source_id)`
+- Using ephemeral ports would cause each packet to appear as a new source, leading to template collisions and parsing errors
+- The fixed source port of **2055** matches the standard NetFlow collection port
+
+This ensures compatibility with collectors using `AutoScopedParser`, `RouterScopedParser`, or similar RFC-compliant implementations.
+
 ## Installation
 
 ### Download Pre-built Binaries
@@ -623,7 +634,7 @@ The project is organized into several modules:
 
 ## Dependencies
 
-- `netflow_parser` (0.7.0) - NetFlow packet structures
+- `netflow_parser` (0.8.0) - NetFlow packet structures
 - `serde_yaml` (0.9) - YAML parsing
 - `serde` (1.0) - Serialization framework
 - `clap` (4.5) - CLI argument parsing
