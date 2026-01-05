@@ -135,6 +135,21 @@ fn get_header_values(
     Ok((export_time, sequence_number, observation_domain_id))
 }
 
+/// Public wrapper for building template packets (used by template cache)
+pub fn build_template_packet_for_cache(
+    export_time: u32,
+    sequence_number: u32,
+    observation_domain_id: u32,
+    templates: &[(u16, Vec<crate::config::schema::IPFixTemplateField>)],
+) -> Result<Vec<u8>> {
+    build_template_packet(
+        export_time,
+        sequence_number,
+        observation_domain_id,
+        templates,
+    )
+}
+
 fn build_template_packet(
     export_time: u32,
     sequence_number: u32,
