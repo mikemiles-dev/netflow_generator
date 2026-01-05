@@ -143,6 +143,23 @@ fn get_header_values(
     Ok((sys_up_time, unix_secs, sequence_number, source_id))
 }
 
+/// Public wrapper for building template packets (used by template cache)
+pub fn build_template_packet_for_cache(
+    sys_up_time: u32,
+    unix_secs: u32,
+    sequence_number: u32,
+    source_id: u32,
+    templates: &[(u16, Vec<crate::config::schema::V9TemplateField>)],
+) -> Result<Vec<u8>> {
+    build_template_packet(
+        sys_up_time,
+        unix_secs,
+        sequence_number,
+        source_id,
+        templates,
+    )
+}
+
 fn build_template_packet(
     sys_up_time: u32,
     unix_secs: u32,

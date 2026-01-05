@@ -1,3 +1,26 @@
+# 0.2.6
+* **Feature**: Template caching for NetFlow v9 and IPFIX
+  - Templates are now built once at startup and cached for reuse across iterations
+  - Eliminates template regeneration overhead in continuous mode
+  - Ensures template consistency - same template bytes sent every time
+  - Validates template_id uniqueness at startup - detects collisions where same template_id is used with different field definitions
+  - Cached templates are reused instead of regenerated, improving performance and reliability
+* **Feature**: Enhanced startup template delivery for better collector reliability
+  - Templates now sent in first 3 iterations (previously only iteration 1)
+  - Provides redundancy for unreliable networks or collector startup timing
+  - After iteration 3, reverts to 30-second refresh interval per RFC recommendations
+  - Reduces likelihood of data packets arriving before templates
+* **Performance**: Maximum parallelization for packet generation
+  - Restored and enhanced parallel processing using rayon (reverts limitation from v0.2.4)
+  - Flows are now processed in parallel at multiple levels:
+    1. Different exporters process completely in parallel (existing behavior)
+    2. Flows within same exporter now also process in parallel (new optimization)
+  - Sequence numbers pre-calculated sequentially then packets generated concurrently
+  - Maintains correct sequence number ordering while maximizing CPU utilization
+  - Significant performance improvement for configs with multiple flows per exporter
+* **Internal**: New template_cache module for centralized template management
+* **Internal**: Added PartialEq derives to template field structs for validation
+
 # 0.2.5
 * **Fix**: Updated Docker Rust to 1.90 to fix compilation issues.
 

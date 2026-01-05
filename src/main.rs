@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod error;
 mod generator;
+mod template_cache;
 mod transmitter;
 
 use clap::Parser;
@@ -111,6 +112,16 @@ fn main() -> Result<()> {
         let mut v9_sequence_numbers: HashMap<u32, u32> = HashMap::new();
         let mut ipfix_sequence_numbers: HashMap<u32, u32> = HashMap::new();
 
+        // Build template cache once (validates no template_id collisions)
+        let template_cache = if let Some(ref cfg) = config {
+            Some(template_cache::TemplateCache::from_config(
+                &cfg.flows,
+                args.verbose,
+            )?)
+        } else {
+            None
+        };
+
         // Track template refresh timing per RFC 7011/3954
         // Templates should be sent periodically (e.g., every 30 seconds) not on every packet
         let mut last_template_send = std::time::Instant::now();
@@ -132,10 +143,10 @@ fn main() -> Result<()> {
             }
 
             // Determine if we should send templates this iteration
-            // Send on first iteration or if 30+ seconds have elapsed since last send
+            // Send on first 3 iterations for reliability, then every 30+ seconds
             let send_templates =
-                iteration == 1 || last_template_send.elapsed() >= TEMPLATE_REFRESH_INTERVAL;
-            if send_templates && iteration > 1 {
+                iteration <= 3 || last_template_send.elapsed() >= TEMPLATE_REFRESH_INTERVAL;
+            if send_templates && iteration > 3 {
                 if args.verbose {
                     println!(
                         "Template refresh: {} seconds since last send",
@@ -143,31 +154,47 @@ fn main() -> Result<()> {
                     );
                 }
                 last_template_send = std::time::Instant::now();
-            } else if iteration == 1 && args.verbose {
-                println!("Sending initial templates");
+            } else if iteration <= 3 && args.verbose {
+                println!("Sending templates (startup phase)");
             }
 
             // Generate packets
-            let packets = if let Some(ref cfg) = config {
-                generate_packets_from_config(
+            let mut packets = Vec::new();
+
+            // Send cached templates if needed
+            if send_templates && let Some(ref cache) = template_cache {
+                // Add cached V9 templates
+                for template_packet in cache.v9_templates() {
+                    packets.push(template_packet.clone());
+                }
+                // Add cached IPFIX templates
+                for template_packet in cache.ipfix_templates() {
+                    packets.push(template_packet.clone());
+                }
+            }
+
+            // Generate data packets
+            if let Some(ref cfg) = config {
+                let mut data_packets = generate_packets_from_config(
                     cfg,
                     &mut v5_sequence_numbers,
                     &mut v9_sequence_numbers,
                     &mut ipfix_sequence_numbers,
-                    send_templates,
+                    false, // Never generate templates here - use cache instead
                     args.verbose,
-                )?
+                )?;
+                packets.append(&mut data_packets);
             } else {
                 // For samples, use a simple counter per version
                 // V9 uses source_id=1, IPFIX uses observation_domain_id=2 to avoid collisions
                 let v9_seq = *v9_sequence_numbers.get(&1).unwrap_or(&0);
                 let ipfix_seq = *ipfix_sequence_numbers.get(&2).unwrap_or(&0);
-                let (packets, next_v9_seq, next_ipfix_seq) =
+                let (sample_packets, next_v9_seq, next_ipfix_seq) =
                     generator::generate_all_samples_with_seq(v9_seq, ipfix_seq, send_templates)?;
                 v9_sequence_numbers.insert(1, next_v9_seq);
                 ipfix_sequence_numbers.insert(2, next_ipfix_seq);
-                packets
-            };
+                packets.extend(sample_packets);
+            }
 
             if args.verbose {
                 println!("Generated {} packet(s)", packets.len());
@@ -461,77 +488,132 @@ fn group_flows_by_exporter(flows: &[FlowConfig]) -> HashMap<ExporterId, Vec<Flow
     groups
 }
 
-/// Process all flows for a single exporter group sequentially
+/// Process all flows for a single exporter group in parallel
+/// Pre-calculates sequence numbers, then generates packets concurrently
 fn process_exporter_group(
     flows: &[FlowConfig],
     initial_sequence: u32,
     send_templates: bool,
     verbose: bool,
 ) -> Result<(Vec<Vec<u8>>, u32)> {
-    let mut packets = Vec::new();
+    use rayon::prelude::*;
+
+    // Phase 1: Pre-calculate sequence number ranges (sequential, lightweight)
+    // This assigns each flow a starting sequence number
+    let mut sequence_assignments = Vec::with_capacity(flows.len());
     let mut current_seq = initial_sequence;
 
     for flow in flows {
-        match flow {
-            FlowConfig::V5(v5_config) => {
-                if verbose {
-                    println!("  Generating NetFlow V5 packet...");
-                }
-                let packet = generator::build_v5_packet(v5_config.clone(), Some(current_seq))?;
-                packets.push(packet);
+        let start_seq = current_seq;
 
-                // V5 sequence increments by number of flow records in packet
-                let num_records = u32::try_from(v5_config.flowsets.len()).map_err(|_| {
-                    error::NetflowError::Generation("Too many V5 flowsets".to_string())
-                })?;
-                current_seq = current_seq.checked_add(num_records).ok_or_else(|| {
-                    error::NetflowError::Generation("Sequence number overflow".to_string())
-                })?;
+        // Calculate how many records this flow will generate
+        let record_count = match flow {
+            FlowConfig::V5(config) => u32::try_from(config.flowsets.len()).unwrap_or(0),
+            FlowConfig::V7(_) => 0, // V7 doesn't use sequence numbers
+            FlowConfig::V9(config) => {
+                // Count data records across all data flowsets
+                config
+                    .flowsets
+                    .iter()
+                    .map(|fs| {
+                        if let config::schema::V9FlowSet::Data { records, .. } = fs {
+                            u32::try_from(records.len()).unwrap_or(0)
+                        } else {
+                            0
+                        }
+                    })
+                    .sum()
             }
-            FlowConfig::V7(v7_config) => {
-                if verbose {
-                    println!("  Generating NetFlow V7 packet...");
-                }
-                let packet = generator::build_v7_packet(v7_config.clone())?;
-                packets.push(packet);
-                // No sequence tracking for V7
+            FlowConfig::IPFix(config) => {
+                // Count data records across all data flowsets
+                config
+                    .flowsets
+                    .iter()
+                    .map(|fs| {
+                        if let config::schema::IPFixFlowSet::Data { records, .. } = fs {
+                            u32::try_from(records.len()).unwrap_or(0)
+                        } else {
+                            0
+                        }
+                    })
+                    .sum()
             }
-            FlowConfig::V9(v9_config) => {
-                if verbose {
-                    let template_msg = if send_templates {
-                        " (with templates)"
-                    } else {
-                        ""
-                    };
-                    println!("  Generating NetFlow V9 packet(s){}...", template_msg);
-                }
-                let (batch, next_seq) = generator::build_v9_packets(
-                    v9_config.clone(),
-                    Some(current_seq),
-                    send_templates,
-                )?;
-                packets.extend(batch);
-                current_seq = next_seq;
-            }
-            FlowConfig::IPFix(ipfix_config) => {
-                if verbose {
-                    let template_msg = if send_templates {
-                        " (with templates)"
-                    } else {
-                        ""
-                    };
-                    println!("  Generating IPFIX packet(s){}...", template_msg);
-                }
-                let (batch, next_seq) = generator::build_ipfix_packets(
-                    ipfix_config.clone(),
-                    Some(current_seq),
-                    send_templates,
-                )?;
-                packets.extend(batch);
-                current_seq = next_seq;
-            }
-        }
+        };
+
+        sequence_assignments.push(start_seq);
+        current_seq = current_seq.checked_add(record_count).ok_or_else(|| {
+            error::NetflowError::Generation("Sequence number overflow".to_string())
+        })?;
     }
 
-    Ok((packets, current_seq))
+    let final_sequence = current_seq;
+
+    // Phase 2: Generate packets in parallel with pre-assigned sequence numbers
+    let results: Vec<(usize, Vec<Vec<u8>>)> = flows
+        .par_iter()
+        .enumerate()
+        .map(|(index, flow)| {
+            let assigned_seq = sequence_assignments[index];
+
+            let packets = match flow {
+                FlowConfig::V5(v5_config) => {
+                    if verbose {
+                        println!("  Generating NetFlow V5 packet...");
+                    }
+                    vec![generator::build_v5_packet(
+                        v5_config.clone(),
+                        Some(assigned_seq),
+                    )?]
+                }
+                FlowConfig::V7(v7_config) => {
+                    if verbose {
+                        println!("  Generating NetFlow V7 packet...");
+                    }
+                    vec![generator::build_v7_packet(v7_config.clone())?]
+                }
+                FlowConfig::V9(v9_config) => {
+                    if verbose {
+                        let template_msg = if send_templates {
+                            " (with templates)"
+                        } else {
+                            ""
+                        };
+                        println!("  Generating NetFlow V9 packet(s){}...", template_msg);
+                    }
+                    let (batch, _) = generator::build_v9_packets(
+                        v9_config.clone(),
+                        Some(assigned_seq),
+                        send_templates,
+                    )?;
+                    batch
+                }
+                FlowConfig::IPFix(ipfix_config) => {
+                    if verbose {
+                        let template_msg = if send_templates {
+                            " (with templates)"
+                        } else {
+                            ""
+                        };
+                        println!("  Generating IPFIX packet(s){}...", template_msg);
+                    }
+                    let (batch, _) = generator::build_ipfix_packets(
+                        ipfix_config.clone(),
+                        Some(assigned_seq),
+                        send_templates,
+                    )?;
+                    batch
+                }
+            };
+
+            Ok((index, packets))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    // Phase 3: Flatten results in original order
+    let mut all_packets = Vec::new();
+    for (_, packets) in results {
+        all_packets.extend(packets);
+    }
+
+    Ok((all_packets, final_sequence))
 }

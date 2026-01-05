@@ -269,7 +269,7 @@ cargo run -- --config flows.yaml --interval 10 --verbose
 
 The generator will loop indefinitely, sending packets at the specified interval. Press Ctrl+C to stop.
 
-Note: When using `--output` in continuous mode, each iteration will create a separate pcap file with an iteration number appended (e.g., `packets.pcap`, `packets_2.pcap`, `packets_3.pcap`).
+Note: When using `--output` in continuous mode, all iterations append to a single pcap file for the entire run.
 
 ## CLI Options
 
@@ -678,6 +678,7 @@ The project is organized into several modules:
   - `ipfix.rs` - IPFIX template and data packet builder
   - `samples.rs` - Default sample packet definitions
   - `field_serializer.rs` - Field value serialization helpers
+- **template_cache**: Template caching and validation for v9/IPFIX
 - **transmitter**: UDP transmission and pcap file export
 - **error**: Custom error types using thiserror
 
@@ -690,6 +691,8 @@ The project is organized into several modules:
 - `tokio` (1.42) - Async runtime for networking
 - `thiserror` (2.0) - Custom error types
 - `pcap-file` (2.0) - Pcap file generation
+- `rayon` (1.10) - Data parallelism for multi-threaded packet generation
+- `ctrlc` (3.4) - Graceful shutdown handling
 
 ## Contributing
 

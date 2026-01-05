@@ -159,7 +159,7 @@ pub enum V9FlowSet {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct V9TemplateField {
     pub field_type: String,
     pub field_length: u16,
@@ -201,7 +201,7 @@ pub enum IPFixFlowSet {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct IPFixTemplateField {
     pub field_type: String,
     pub field_length: u16,
