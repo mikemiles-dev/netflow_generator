@@ -4,9 +4,18 @@ use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
 
 /// Send packets via UDP
-pub fn send_udp(packets: &[Vec<u8>], destination: SocketAddr, verbose: bool) -> Result<()> {
-    // Create UDP socket
-    let socket = UdpSocket::bind("0.0.0.0:0")
+pub fn send_udp(
+    packets: &[Vec<u8>],
+    destination: SocketAddr,
+    source_port: u16,
+    verbose: bool,
+) -> Result<()> {
+    // Create UDP socket with fixed source port to match real router behavior
+    // Real NetFlow exporters use a consistent source port rather than ephemeral ports.
+    // This ensures proper parser scoping in collectors that key on source address
+    // (IP:port) + observation_domain_id/source_id per RFC 7011/3954.
+    let bind_addr = format!("0.0.0.0:{}", source_port);
+    let socket = UdpSocket::bind(&bind_addr)
         .map_err(|e| NetflowError::Network(format!("Failed to bind UDP socket: {}", e)))?;
 
     if verbose {
@@ -358,13 +367,27 @@ mod tests {
         let receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
         let receiver_addr = receiver.local_addr().unwrap();
 
-        // Send a test packet
+        // Send a test packet using default source port 2056
+        // Note: This may fail if port 2056 is already in use (by the system or another process)
+        // In that case, the test is skipped as we can't test UDP sending without available ports
         let test_packet = vec![0x00, 0x05, 0x00, 0x01]; // Simple V5 header start
-        send_udp(std::slice::from_ref(&test_packet), receiver_addr, false).unwrap();
-
-        // Receive and verify
-        let mut buf = [0u8; 1024];
-        let (size, _) = receiver.recv_from(&mut buf).unwrap();
-        assert_eq!(&buf[..size], &test_packet[..]);
+        match send_udp(
+            std::slice::from_ref(&test_packet),
+            receiver_addr,
+            2056,
+            false,
+        ) {
+            Ok(_) => {
+                // Receive and verify
+                let mut buf = [0u8; 1024];
+                let (size, _) = receiver.recv_from(&mut buf).unwrap();
+                assert_eq!(&buf[..size], &test_packet[..]);
+            }
+            Err(NetflowError::Network(e)) if e.contains("Address already in use") => {
+                // Port 2056 is in use, skip test
+                eprintln!("Skipping test: port 2056 already in use");
+            }
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
     }
 }

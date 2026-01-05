@@ -67,10 +67,16 @@ pub fn sample_v7_config() -> V7Config {
 /// Generate sample V9 configuration
 /// Represents HTTP traffic: 192.168.10.5:48921 -> 93.184.216.34:80
 pub fn sample_v9_config() -> V9Config {
+    use crate::config::schema::V9Header;
     use serde_yaml::Value;
 
     V9Config {
-        header: None, // Use defaults
+        header: Some(V9Header {
+            sys_up_time: Some(360000),
+            unix_secs: None,
+            sequence_number: None,
+            source_id: Some(1), // V9 uses source_id=1
+        }),
         flowsets: vec![
             // Template definition
             V9FlowSet::Template {
@@ -149,10 +155,15 @@ pub fn sample_v9_config() -> V9Config {
 /// Generate sample IPFIX configuration
 /// Represents SSH session: 172.20.0.100:50122 -> 198.51.100.10:22
 pub fn sample_ipfix_config() -> IPFixConfig {
+    use crate::config::schema::IPFixHeader;
     use serde_yaml::Value;
 
     IPFixConfig {
-        header: None, // Use defaults
+        header: Some(IPFixHeader {
+            export_time: None,
+            sequence_number: None,
+            observation_domain_id: Some(2), // IPFIX uses observation_domain_id=2 to avoid collision with V9
+        }),
         flowsets: vec![
             // Template definition
             IPFixFlowSet::Template {
@@ -228,13 +239,25 @@ pub fn sample_ipfix_config() -> IPFixConfig {
     }
 }
 
-/// Generate all sample packets
-pub fn generate_all_samples() -> Result<Vec<Vec<u8>>> {
+/// Generate all sample packets with sequence number tracking
+///
+/// # Arguments
+/// * `v9_seq` - Current V9 sequence number (will be incremented)
+/// * `ipfix_seq` - Current IPFIX sequence number (will be incremented)
+/// * `send_templates` - Whether to include template packets (for periodic refresh)
+///
+/// # Returns
+/// * `(packets, next_v9_seq, next_ipfix_seq)` - Generated packets and updated sequence numbers
+pub fn generate_all_samples_with_seq(
+    v9_seq: u32,
+    ipfix_seq: u32,
+    send_templates: bool,
+) -> Result<(Vec<Vec<u8>>, u32, u32)> {
     let mut packets = Vec::new();
 
     // V5 sample
     let v5_config = sample_v5_config();
-    let v5_packet = crate::generator::v5::build_v5_packet(v5_config)?;
+    let v5_packet = crate::generator::v5::build_v5_packet(v5_config, None)?;
     packets.push(v5_packet);
 
     // V7 sample
@@ -244,13 +267,24 @@ pub fn generate_all_samples() -> Result<Vec<Vec<u8>>> {
 
     // V9 sample (may return multiple packets)
     let v9_config = sample_v9_config();
-    let v9_packets = crate::generator::v9::build_v9_packets(v9_config)?;
+    let (v9_packets, next_v9_seq) =
+        crate::generator::v9::build_v9_packets(v9_config, Some(v9_seq), send_templates)?;
     packets.extend(v9_packets);
 
     // IPFIX sample (may return multiple packets)
     let ipfix_config = sample_ipfix_config();
-    let ipfix_packets = crate::generator::ipfix::build_ipfix_packets(ipfix_config)?;
+    let (ipfix_packets, next_ipfix_seq) = crate::generator::ipfix::build_ipfix_packets(
+        ipfix_config,
+        Some(ipfix_seq),
+        send_templates,
+    )?;
     packets.extend(ipfix_packets);
 
+    Ok((packets, next_v9_seq, next_ipfix_seq))
+}
+
+/// Generate all sample packets (legacy function for backwards compatibility)
+pub fn generate_all_samples() -> Result<Vec<Vec<u8>>> {
+    let (packets, _, _) = generate_all_samples_with_seq(0, 0, true)?;
     Ok(packets)
 }

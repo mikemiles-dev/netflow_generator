@@ -7,11 +7,24 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build NetFlow V9 packets from configuration
 /// Generates proper template and data flowsets
-pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
+///
+/// # Arguments
+/// * `config` - V9 configuration
+/// * `override_sequence_number` - Optional sequence number to use (overrides config value)
+/// * `send_templates` - Whether to include template packets (for periodic refresh)
+///
+/// # Returns
+/// * `(packets, next_sequence_number)` - Generated packets and the next sequence number to use
+pub fn build_v9_packets(
+    config: V9Config,
+    override_sequence_number: Option<u32>,
+    send_templates: bool,
+) -> Result<(Vec<Vec<u8>>, u32)> {
     let mut packets = Vec::new();
 
     // Get header values
-    let (sys_up_time, unix_secs, mut sequence_number, source_id) = get_header_values(&config)?;
+    let (sys_up_time, unix_secs, mut sequence_number, source_id) =
+        get_header_values(&config, override_sequence_number)?;
 
     // Separate templates and data flowsets
     let mut templates = Vec::new();
@@ -34,8 +47,9 @@ pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
         }
     }
 
-    // Generate template packet if we have templates
-    if !templates.is_empty() {
+    // Generate template packet if we have templates AND send_templates is true
+    // Per RFC 3954: Template packets do NOT increment the sequence number
+    if !templates.is_empty() && send_templates {
         let template_packet = build_template_packet(
             sys_up_time,
             unix_secs,
@@ -44,7 +58,7 @@ pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
             &templates,
         )?;
         packets.push(template_packet);
-        sequence_number += 1;
+        // No sequence increment for template packets
     }
 
     // Generate data packets
@@ -71,7 +85,14 @@ pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
             &records,
         )?;
         packets.push(data_packet);
-        sequence_number += 1;
+
+        // Per RFC 3954: Sequence number increments by the number of flow records
+        let num_records = u32::try_from(records.len()).map_err(|_| {
+            NetflowError::Generation("Too many records (max 4294967295)".to_string())
+        })?;
+        sequence_number = sequence_number
+            .checked_add(num_records)
+            .ok_or_else(|| NetflowError::Generation("Sequence number overflow".to_string()))?;
     }
 
     if packets.is_empty() {
@@ -80,10 +101,13 @@ pub fn build_v9_packets(config: V9Config) -> Result<Vec<Vec<u8>>> {
         ));
     }
 
-    Ok(packets)
+    Ok((packets, sequence_number))
 }
 
-fn get_header_values(config: &V9Config) -> Result<(u32, u32, u32, u32)> {
+fn get_header_values(
+    config: &V9Config,
+    override_sequence_number: Option<u32>,
+) -> Result<(u32, u32, u32, u32)> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
@@ -101,7 +125,10 @@ fn get_header_values(config: &V9Config) -> Result<(u32, u32, u32, u32)> {
         360000
     };
 
-    let sequence_number = if let Some(ref h) = config.header {
+    // Use override if provided, otherwise use config value, otherwise default to 0
+    let sequence_number = if let Some(override_seq) = override_sequence_number {
+        override_seq
+    } else if let Some(ref h) = config.header {
         h.sequence_number.unwrap_or(0)
     } else {
         0

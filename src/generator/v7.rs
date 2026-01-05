@@ -143,6 +143,6 @@ mod tests {
         // Verify packet can be parsed back
         let mut parser = NetflowParser::default();
         let parsed = parser.parse_bytes(&packet);
-        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed.packets.len(), 1);
     }
 }

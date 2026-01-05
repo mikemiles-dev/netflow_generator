@@ -4,7 +4,11 @@ use netflow_parser::static_versions::v5::{FlowSet, Header, V5};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build a NetFlow V5 packet from configuration
-pub fn build_v5_packet(config: V5Config) -> Result<Vec<u8>> {
+///
+/// # Arguments
+/// * `config` - V5 configuration
+/// * `override_sequence` - Optional sequence number to use (overrides config value)
+pub fn build_v5_packet(config: V5Config, override_sequence: Option<u32>) -> Result<Vec<u8>> {
     if config.flowsets.is_empty() {
         return Err(NetflowError::Generation(
             "V5 configuration must contain at least one flowset".to_string(),
@@ -12,7 +16,7 @@ pub fn build_v5_packet(config: V5Config) -> Result<Vec<u8>> {
     }
 
     // Build header with defaults where needed
-    let header = build_header(&config)?;
+    let header = build_header(&config, override_sequence)?;
 
     // Build flowsets
     let flowsets: Vec<FlowSet> = config
@@ -50,7 +54,7 @@ pub fn build_v5_packet(config: V5Config) -> Result<Vec<u8>> {
     Ok(v5.to_be_bytes())
 }
 
-fn build_header(config: &V5Config) -> Result<Header> {
+fn build_header(config: &V5Config, override_sequence: Option<u32>) -> Result<Header> {
     let count = u16::try_from(config.flowsets.len())
         .map_err(|_| NetflowError::Generation("Too many flowsets (max 65535)".to_string()))?;
 
@@ -78,7 +82,10 @@ fn build_header(config: &V5Config) -> Result<Header> {
         360000 // Default to 6 minutes
     };
 
-    let flow_sequence = if let Some(ref h) = config.header {
+    // Use override_sequence if provided, otherwise use config value or default to 0
+    let flow_sequence = if let Some(seq) = override_sequence {
+        seq
+    } else if let Some(ref h) = config.header {
         h.flow_sequence.unwrap_or(0)
     } else {
         0
@@ -148,11 +155,11 @@ mod tests {
             }],
         };
 
-        let packet = build_v5_packet(config).unwrap();
+        let packet = build_v5_packet(config, None).unwrap();
 
         // Verify packet can be parsed back
         let mut parser = NetflowParser::default();
         let parsed = parser.parse_bytes(&packet);
-        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed.packets.len(), 1);
     }
 }

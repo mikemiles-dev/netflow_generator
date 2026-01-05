@@ -14,6 +14,65 @@ A flexible NetFlow packet generator written in Rust that supports NetFlow v5, v7
 - **Configurable Destination**: Override destination IP and port via CLI
 - **Validation**: Automatic validation of configuration files
 
+## Network Behavior
+
+This generator mimics real NetFlow exporter behavior by using a **fixed source port (default: 2056)** for UDP transmissions. This is critical for proper operation with NetFlow collectors that implement RFC-compliant scoping:
+
+- **Real routers** use consistent source ports (not ephemeral ports) for NetFlow exports
+- **RFC 7011 (IPFIX)** and **RFC 3954 (NetFlow v9)** specify that collectors should key template caches on `(source_address, observation_domain_id)` or `(source_address, source_id)`
+- Using ephemeral ports would cause each packet to appear as a new source, leading to template collisions and parsing errors
+- The default source port of **2056** avoids conflicts with NetFlow collectors typically running on port 2055
+- You can customize the source port using the `--source-port` option
+
+This ensures compatibility with collectors using `AutoScopedParser`, `RouterScopedParser`, or similar RFC-compliant implementations.
+
+### Sequence Number Tracking (NetFlow v9 and IPFIX)
+
+In continuous mode, the generator properly tracks sequence numbers across iterations to mimic real router behavior:
+
+- **NetFlow v9**: Sequence numbers are tracked per `source_id` (default: 1)
+- **IPFIX**: Sequence numbers are tracked per `observation_domain_id` (default: 1)
+- Sequence numbers increment with each packet sent from the same exporter
+- This prevents sequence number collisions that parsers would detect as errors
+- Each exporter (identified by `source IP:port + source_id/observation_domain_id`) maintains its own sequence counter
+
+**Example behavior in continuous mode:**
+```
+Iteration 1: V9 seq=0, IPFIX seq=0
+Iteration 2: V9 seq=2, IPFIX seq=2  (assuming 2 packets per iteration)
+Iteration 3: V9 seq=4, IPFIX seq=4
+...
+```
+
+If you configure multiple exporters with different `source_id` or `observation_domain_id` values, each will maintain independent sequence counters.
+
+### Testing Locally
+
+The generator uses a fixed source port (default: **2056**) to mimic real router behavior. When testing locally:
+
+```bash
+# Terminal 1: Start a listener on the standard NetFlow port
+nc -ul 127.0.0.1 2055
+
+# Terminal 2: Send to that port (source will be 2056, dest will be 2055)
+netflow_generator --verbose --once
+
+# Or using cargo run
+cargo run -- --verbose --once
+```
+
+**If you need to use a different source port** (e.g., if port 2056 is in use):
+
+```bash
+# Use a custom source port
+netflow_generator --source-port 9996 --dest 127.0.0.1:2055 --verbose --once
+
+# Or test with both custom source and destination
+netflow_generator --source-port 9996 --dest 127.0.0.1:9995 --verbose --once
+```
+
+Note: Source and destination ports must be different when testing on the same machine.
+
 ## Installation
 
 ### Download Pre-built Binaries
@@ -221,6 +280,7 @@ Options:
   -o, --output <FILE>        Save packets to pcap file instead of sending via UDP
   -v, --verbose              Enable verbose output
   -t, --threads <NUMBER>     Number of threads for parallel packet generation (default: 4)
+  -s, --source-port <PORT>   Source port for UDP transmission (default: 2056)
   -i, --interval [SECONDS]   Send flows every N seconds (default: 2)
                              Continuous mode is the default behavior
       --once                 Send flows once and exit (disables continuous mode)
@@ -623,7 +683,7 @@ The project is organized into several modules:
 
 ## Dependencies
 
-- `netflow_parser` (0.7.0) - NetFlow packet structures
+- `netflow_parser` (0.8.0) - NetFlow packet structures
 - `serde_yaml` (0.9) - YAML parsing
 - `serde` (1.0) - Serialization framework
 - `clap` (4.5) - CLI argument parsing

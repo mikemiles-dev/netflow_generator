@@ -7,11 +7,24 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build IPFIX packets from configuration
 /// Generates proper template and data flowsets
-pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
+///
+/// # Arguments
+/// * `config` - IPFIX configuration
+/// * `override_sequence_number` - Optional sequence number to use (overrides config value)
+/// * `send_templates` - Whether to include template packets (for periodic refresh)
+///
+/// # Returns
+/// * `(packets, next_sequence_number)` - Generated packets and the next sequence number to use
+pub fn build_ipfix_packets(
+    config: IPFixConfig,
+    override_sequence_number: Option<u32>,
+    send_templates: bool,
+) -> Result<(Vec<Vec<u8>>, u32)> {
     let mut packets = Vec::new();
 
     // Get header values
-    let (export_time, mut sequence_number, observation_domain_id) = get_header_values(&config)?;
+    let (export_time, mut sequence_number, observation_domain_id) =
+        get_header_values(&config, override_sequence_number)?;
 
     // Separate templates and data flowsets
     let mut templates = Vec::new();
@@ -34,8 +47,9 @@ pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
         }
     }
 
-    // Generate template packet if we have templates
-    if !templates.is_empty() {
+    // Generate template packet if we have templates AND send_templates is true
+    // Per RFC 7011: Template packets (Template Sets) do NOT increment the sequence number
+    if !templates.is_empty() && send_templates {
         let template_packet = build_template_packet(
             export_time,
             sequence_number,
@@ -43,7 +57,7 @@ pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
             &templates,
         )?;
         packets.push(template_packet);
-        sequence_number += 1;
+        // No sequence increment for template packets
     }
 
     // Generate data packets
@@ -69,7 +83,14 @@ pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
             &records,
         )?;
         packets.push(data_packet);
-        sequence_number += 1;
+
+        // Per RFC 7011: Sequence number increments by the number of data records
+        let num_records = u32::try_from(records.len()).map_err(|_| {
+            NetflowError::Generation("Too many records (max 4294967295)".to_string())
+        })?;
+        sequence_number = sequence_number
+            .checked_add(num_records)
+            .ok_or_else(|| NetflowError::Generation("Sequence number overflow".to_string()))?;
     }
 
     if packets.is_empty() {
@@ -78,10 +99,13 @@ pub fn build_ipfix_packets(config: IPFixConfig) -> Result<Vec<Vec<u8>>> {
         ));
     }
 
-    Ok(packets)
+    Ok((packets, sequence_number))
 }
 
-fn get_header_values(config: &IPFixConfig) -> Result<(u32, u32, u32)> {
+fn get_header_values(
+    config: &IPFixConfig,
+    override_sequence_number: Option<u32>,
+) -> Result<(u32, u32, u32)> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| NetflowError::Generation(format!("Failed to get system time: {}", e)))?;
@@ -93,7 +117,10 @@ fn get_header_values(config: &IPFixConfig) -> Result<(u32, u32, u32)> {
         u32::try_from(now.as_secs()).unwrap_or(u32::MAX)
     };
 
-    let sequence_number = if let Some(ref h) = config.header {
+    // Use override if provided, otherwise use config value, otherwise default to 0
+    let sequence_number = if let Some(override_seq) = override_sequence_number {
+        override_seq
+    } else if let Some(ref h) = config.header {
         h.sequence_number.unwrap_or(0)
     } else {
         0
