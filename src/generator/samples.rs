@@ -257,7 +257,7 @@ pub fn generate_all_samples_with_seq(
 
     // V5 sample
     let v5_config = sample_v5_config();
-    let v5_packet = crate::generator::v5::build_v5_packet(v5_config)?;
+    let v5_packet = crate::generator::v5::build_v5_packet(v5_config, None)?;
     packets.push(v5_packet);
 
     // V7 sample

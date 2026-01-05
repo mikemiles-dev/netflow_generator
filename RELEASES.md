@@ -8,9 +8,6 @@
 * **Fix**: Removed parallel processing (rayon) for V9/IPFIX flows to maintain proper sequence number ordering
   - V5 and V7 flows are processed sequentially for consistency
   - Sequential processing ensures correct sequence number tracking
-* **Documentation**: Added "Sequence Number Tracking" section to README explaining behavior in continuous mode
-
-# 0.2.4
 * **Fix**: UDP socket now uses fixed source port 2056 instead of ephemeral ports
   - Matches real NetFlow exporter behavior where routers use consistent source ports
   - Fixes template collision issues with RFC-compliant collectors (AutoScopedParser, RouterScopedParser)
@@ -18,6 +15,7 @@
   - Previous ephemeral port behavior caused each packet to be treated as a different source
   - Port 2056 avoids conflicts with NetFlow collectors typically running on port 2055
 * **Dependency**: Updated netflow_parser from 0.7.0 to 0.8.0
+* **Documentation**: Added "Sequence Number Tracking" section to README explaining behavior in continuous mode
 * **Documentation**: Added "Network Behavior" section to README explaining fixed source port rationale
 
 # 0.2.3
