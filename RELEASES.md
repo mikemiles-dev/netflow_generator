@@ -1,4 +1,4 @@
-# 0.2.5
+# 0.2.4
 * **Fix**: NetFlow v9 and IPFIX sequence numbers now properly increment across iterations in continuous mode
   - Previous behavior reset sequence numbers to 0 on each iteration, causing parsers to detect collisions
   - Sequence numbers are now tracked per exporter (source_id for V9, observation_domain_id for IPFIX)
