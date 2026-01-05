@@ -62,4 +62,13 @@ pub struct Cli {
     /// many flows, but will use more CPU and memory.
     #[arg(short = 't', long, default_value = "4")]
     pub threads: usize,
+
+    /// Source port for UDP transmission (default: 2056)
+    ///
+    /// Real NetFlow exporters use a consistent source port to ensure
+    /// proper template scoping in collectors. The default of 2056
+    /// avoids conflicts with NetFlow collectors typically running on 2055.
+    /// Must be different from the destination port when testing locally.
+    #[arg(short = 's', long, value_name = "PORT", default_value = "2056")]
+    pub source_port: u16,
 }

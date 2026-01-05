@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 name = "netflow_generator"
 repository = "https://github.com/mikemiles-dev/netflow_generator/"
 readme = "README.md"
-version = "0.2.4"
+version = "0.2.5"
 
 [dependencies]
 netflow_parser = "0.8.0"

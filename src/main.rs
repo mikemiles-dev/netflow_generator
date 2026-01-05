@@ -8,7 +8,7 @@ use clap::Parser;
 use cli::Cli;
 use config::{FlowConfig, parse_yaml_file, validate_config};
 use error::Result;
-use rayon::prelude::*;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -89,6 +89,16 @@ fn main() -> Result<()> {
             None
         };
 
+        // Track sequence numbers across iterations for V9/IPFIX
+        // Key: (source_id for V9, observation_domain_id for IPFIX)
+        let mut v9_sequence_numbers: HashMap<u32, u32> = HashMap::new();
+        let mut ipfix_sequence_numbers: HashMap<u32, u32> = HashMap::new();
+
+        // Track template refresh timing per RFC 7011/3954
+        // Templates should be sent periodically (e.g., every 30 seconds) not on every packet
+        let mut last_template_send = std::time::Instant::now();
+        const TEMPLATE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+
         // Loop until shutdown signal received
         let mut iteration = 1;
         loop {
@@ -104,11 +114,41 @@ fn main() -> Result<()> {
                 println!("\n--- Iteration {} ---", iteration);
             }
 
+            // Determine if we should send templates this iteration
+            // Send on first iteration or if 30+ seconds have elapsed since last send
+            let send_templates =
+                iteration == 1 || last_template_send.elapsed() >= TEMPLATE_REFRESH_INTERVAL;
+            if send_templates && iteration > 1 {
+                if args.verbose {
+                    println!(
+                        "Template refresh: {} seconds since last send",
+                        last_template_send.elapsed().as_secs()
+                    );
+                }
+                last_template_send = std::time::Instant::now();
+            } else if iteration == 1 && args.verbose {
+                println!("Sending initial templates");
+            }
+
             // Generate packets
             let packets = if let Some(ref cfg) = config {
-                generate_packets_from_config(cfg, args.verbose)?
+                generate_packets_from_config(
+                    cfg,
+                    &mut v9_sequence_numbers,
+                    &mut ipfix_sequence_numbers,
+                    send_templates,
+                    args.verbose,
+                )?
             } else {
-                generator::generate_all_samples()?
+                // For samples, use a simple counter per version
+                // V9 uses source_id=1, IPFIX uses observation_domain_id=2 to avoid collisions
+                let v9_seq = *v9_sequence_numbers.get(&1).unwrap_or(&0);
+                let ipfix_seq = *ipfix_sequence_numbers.get(&2).unwrap_or(&0);
+                let (packets, next_v9_seq, next_ipfix_seq) =
+                    generator::generate_all_samples_with_seq(v9_seq, ipfix_seq, send_templates)?;
+                v9_sequence_numbers.insert(1, next_v9_seq);
+                ipfix_sequence_numbers.insert(2, next_ipfix_seq);
+                packets
             };
 
             if args.verbose {
@@ -122,7 +162,7 @@ fn main() -> Result<()> {
                 if args.verbose {
                     println!("Transmitting packets to {}", destination);
                 }
-                transmitter::send_udp(&packets, destination, args.verbose)?;
+                transmitter::send_udp(&packets, destination, args.source_port, args.verbose)?;
             }
 
             iteration += 1;
@@ -167,8 +207,16 @@ fn run_once(args: &Cli) -> Result<()> {
             println!("Configuration loaded: {} flow(s)", config.flows.len());
         }
 
-        // Generate packets from config
-        generate_packets_from_config(&config, args.verbose)?
+        // Generate packets from config (single-shot mode doesn't need sequence tracking across runs)
+        let mut v9_sequence_numbers = HashMap::new();
+        let mut ipfix_sequence_numbers = HashMap::new();
+        generate_packets_from_config(
+            &config,
+            &mut v9_sequence_numbers,
+            &mut ipfix_sequence_numbers,
+            true, // Always send templates in single-shot mode
+            args.verbose,
+        )?
     } else {
         // Use default samples
         if args.verbose {
@@ -195,7 +243,7 @@ fn run_once(args: &Cli) -> Result<()> {
             println!("Transmitting packets to {}", destination);
         }
 
-        transmitter::send_udp(&packets, destination, args.verbose)?;
+        transmitter::send_udp(&packets, destination, args.source_port, args.verbose)?;
     }
 
     if args.verbose {
@@ -205,45 +253,101 @@ fn run_once(args: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn generate_packets_from_config(config: &config::Config, verbose: bool) -> Result<Vec<Vec<u8>>> {
-    // Process flows in parallel using rayon
-    let results: Result<Vec<Vec<Vec<u8>>>> = config
-        .flows
-        .par_iter()
-        .map(|flow| match flow {
+fn generate_packets_from_config(
+    config: &config::Config,
+    v9_sequence_numbers: &mut HashMap<u32, u32>,
+    ipfix_sequence_numbers: &mut HashMap<u32, u32>,
+    send_templates: bool,
+    verbose: bool,
+) -> Result<Vec<Vec<u8>>> {
+    // Note: We can't use rayon for V9/IPFIX because we need to track sequence numbers sequentially
+    // V5 and V7 don't have sequence numbers, so they could be parallelized, but for simplicity
+    // we process all flows sequentially to maintain order and proper sequence number tracking
+
+    let mut all_packets = Vec::new();
+
+    for flow in &config.flows {
+        match flow {
             FlowConfig::V5(v5_config) => {
                 if verbose {
                     println!("Generating NetFlow V5 packet...");
                 }
                 let packet = generator::build_v5_packet(v5_config.clone())?;
-                Ok(vec![packet])
+                all_packets.push(packet);
             }
             FlowConfig::V7(v7_config) => {
                 if verbose {
                     println!("Generating NetFlow V7 packet...");
                 }
                 let packet = generator::build_v7_packet(v7_config.clone())?;
-                Ok(vec![packet])
+                all_packets.push(packet);
             }
             FlowConfig::V9(v9_config) => {
                 if verbose {
-                    println!("Generating NetFlow V9 packet(s)...");
+                    let template_msg = if send_templates {
+                        " (with templates)"
+                    } else {
+                        ""
+                    };
+                    println!("Generating NetFlow V9 packet(s){}...", template_msg);
                 }
-                let packets = generator::build_v9_packets(v9_config.clone())?;
-                Ok(packets)
+                // Get source_id from config or use default
+                let source_id = v9_config
+                    .header
+                    .as_ref()
+                    .and_then(|h| h.source_id)
+                    .unwrap_or(1);
+
+                // Get current sequence number for this source_id
+                let current_seq = *v9_sequence_numbers.get(&source_id).unwrap_or(&0);
+
+                // Generate packets with sequence number tracking
+                let (packets, next_seq) = generator::build_v9_packets(
+                    v9_config.clone(),
+                    Some(current_seq),
+                    send_templates,
+                )?;
+
+                // Update sequence number for this source_id
+                v9_sequence_numbers.insert(source_id, next_seq);
+
+                all_packets.extend(packets);
             }
             FlowConfig::IPFix(ipfix_config) => {
                 if verbose {
-                    println!("Generating IPFIX packet(s)...");
+                    let template_msg = if send_templates {
+                        " (with templates)"
+                    } else {
+                        ""
+                    };
+                    println!("Generating IPFIX packet(s){}...", template_msg);
                 }
-                let packets = generator::build_ipfix_packets(ipfix_config.clone())?;
-                Ok(packets)
-            }
-        })
-        .collect();
+                // Get observation_domain_id from config or use default
+                let observation_domain_id = ipfix_config
+                    .header
+                    .as_ref()
+                    .and_then(|h| h.observation_domain_id)
+                    .unwrap_or(1);
 
-    // Flatten the results into a single vector
-    let all_packets: Vec<Vec<u8>> = results?.into_iter().flatten().collect();
+                // Get current sequence number for this observation_domain_id
+                let current_seq = *ipfix_sequence_numbers
+                    .get(&observation_domain_id)
+                    .unwrap_or(&0);
+
+                // Generate packets with sequence number tracking
+                let (packets, next_seq) = generator::build_ipfix_packets(
+                    ipfix_config.clone(),
+                    Some(current_seq),
+                    send_templates,
+                )?;
+
+                // Update sequence number for this observation_domain_id
+                ipfix_sequence_numbers.insert(observation_domain_id, next_seq);
+
+                all_packets.extend(packets);
+            }
+        }
+    }
 
     Ok(all_packets)
 }
