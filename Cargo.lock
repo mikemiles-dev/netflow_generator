@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "netflow_generator"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "clap",
  "ctrlc",
