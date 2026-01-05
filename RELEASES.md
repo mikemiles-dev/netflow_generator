@@ -1,5 +1,5 @@
 # 0.2.5
-* **Fix**: Updated Docker Rust to 1.90 to fix compliation issues.
+* **Fix**: Updated Docker Rust to 1.90 to fix compilation issues.
 
 # 0.2.4
 * **Fix**: NetFlow v9 and IPFIX sequence numbers now properly increment across iterations in continuous mode
