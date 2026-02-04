@@ -1,3 +1,6 @@
+# 0.2.7
+* **Dependency**: Updated netflow_parser from 0.8.0 to 0.9.0
+
 # 0.2.6
 * **Feature**: Template caching for NetFlow v9 and IPFIX
   - Templates are now built once at startup and cached for reuse across iterations
