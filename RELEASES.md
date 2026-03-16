@@ -1,3 +1,6 @@
+# 0.2.8
+* **Dependency**: Updated netflow_parser from 0.9.0 to 1.0.0
+
 # 0.2.7
 * **Dependency**: Updated netflow_parser from 0.8.0 to 0.9.0
 
