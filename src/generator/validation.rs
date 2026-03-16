@@ -1,4 +1,4 @@
-//! Template validation helpers using netflow_parser 0.8.0
+//! Template validation helpers using netflow_parser 1.0.0
 //!
 //! These helpers validate that generated V9 and IPFIX templates
 //! are well-formed and can be parsed correctly.

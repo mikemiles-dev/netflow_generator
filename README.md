@@ -684,7 +684,7 @@ The project is organized into several modules:
 
 ## Dependencies
 
-- `netflow_parser` (0.8.0) - NetFlow packet structures
+- `netflow_parser` (1.0.0) - NetFlow packet structures
 - `serde_yaml` (0.9) - YAML parsing
 - `serde` (1.0) - Serialization framework
 - `clap` (4.5) - CLI argument parsing
