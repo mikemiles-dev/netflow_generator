@@ -10,7 +10,7 @@ use cli::Cli;
 use config::{FlowConfig, parse_yaml_file, validate_config};
 use error::Result;
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -421,20 +421,21 @@ fn generate_packets_from_config(
 }
 
 fn parse_destination(args: &Cli) -> Result<SocketAddr> {
-    if let Some(ref dest_str) = args.dest {
-        // Parse from CLI argument
-        dest_str.parse().map_err(|e| {
-            error::NetflowError::InvalidDestination(format!(
-                "Invalid destination '{}': {}",
-                dest_str, e
-            ))
-        })
-    } else {
-        // Use default
-        "127.0.0.1:2055".parse().map_err(|e| {
-            error::NetflowError::InvalidDestination(format!("Invalid default destination: {}", e))
-        })
-    }
+    let dest_str = args.dest.as_deref().unwrap_or("127.0.0.1:2055");
+
+    let mut addrs = dest_str.to_socket_addrs().map_err(|e| {
+        error::NetflowError::InvalidDestination(format!(
+            "Invalid destination '{}': {}",
+            dest_str, e
+        ))
+    })?;
+
+    addrs.next().ok_or_else(|| {
+        error::NetflowError::InvalidDestination(format!(
+            "Destination '{}' did not resolve to any address",
+            dest_str
+        ))
+    })
 }
 
 /// Extract exporter ID from a flow config
